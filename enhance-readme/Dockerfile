@@ -1,36 +1,49 @@
 # awesome-list-toolkit/enhance-readme-stars/Dockerfile
-FROM node:24-slim
 
-LABEL version="1.0.0"
-LABEL description="Enhances markdown files with GitHub star counts."
-LABEL maintainer="Your Name/Organization"
+# ---- Builder Stage ----
+FROM node:24 AS builder
 
-# Set working directory
+LABEL stage="builder"
+LABEL maintainer="v1nvn"
+
 WORKDIR /app
 
 # Copy application dependency manifests
 COPY package.json package-lock.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install all dependencies (including devDependencies for building)
+RUN npm ci
 
-# Copy compiled JavaScript and entrypoint script
-# We assume TypeScript is compiled to a 'dist' directory before building the Docker image,
-# OR that entrypoint.sh directly runs ts-node.
-# For simplicity and smaller image, pre-compiling is better.
-# If you are committing the 'dist' folder:
-# COPY dist ./dist
-# If you are compiling in a build stage (more advanced Dockerfile):
-# (This Dockerfile assumes you run `npm run build` locally and commit `dist`)
-
-# For this example, we'll copy the src and compile in the Docker image.
-# This makes the action self-contained for building.
-COPY src ./src
+# Copy TypeScript configuration and source code
 COPY tsconfig.json .
-RUN npm install typescript --global # or add as devDependency and use npx tsc
-RUN tsc # This will compile src/*.ts to dist/*.js based on tsconfig.json
+COPY src ./src
 
+# Compile TypeScript to JavaScript
+RUN npm run build
+
+# Prune devDependencies to prepare for copying to the runner stage
+# This ensures only production dependencies are in node_modules when copied.
+RUN npm prune --omit=dev
+
+# ---- Runner Stage ----
+FROM node:24-slim AS runner
+
+LABEL stage="runner"
+LABEL description="Enhances markdown files with GitHub star counts."
+LABEL maintainer="v1nvn"
+LABEL version="1.0.0"
+
+WORKDIR /app
+
+# Copy production dependencies from the builder stage
+COPY --from=builder /app/node_modules ./node_modules
+
+# Copy compiled JavaScript from the builder stage
+COPY --from=builder /app/dist ./dist
+
+# Copy the entrypoint script
 COPY entrypoint.sh .
 RUN chmod +x entrypoint.sh
 
+# Set the entrypoint for the container
 ENTRYPOINT ["/app/entrypoint.sh"]
