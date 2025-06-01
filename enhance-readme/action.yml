@@ -5,7 +5,7 @@ author: 'Your Name/Organization'
 
 inputs:
   github_token:
-    description: 'GitHub token for API calls. Usually ${{ secrets.GITHUB_TOKEN }}.'
+    description: 'GitHub token for API calls.'
     required: true
   markdown_files:
     description: 'Space-separated list of markdown file paths to process (relative to working_directory).'
