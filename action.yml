@@ -19,13 +19,13 @@ inputs:
     description: 'Space-separated list of markdown file paths (relative to content_destination_path) to enhance with stars.'
     required: false
     default: 'README.md'
-  rsync_exclude_from_file:
+  items_to_sync:
     description: |
-      Path to a file containing rsync exclude patterns.
-      Each pattern should be on a new line.
-      These patterns are relative to the source_path of the rsync operation.
+      Space-separated list of files and/or directories to sync from the source_path.
+      Paths should be relative to the source_path.
+      Example: "README.md images/logo.png docs/"
     required: false
-    default: '.rsync-excludes'
+    default: 'README.md' # Default to syncing only README.md
   extra_rsync_args:
     description: 'Any extra arguments to pass to rsync for the sync-submodule-content step.'
     required: false
@@ -88,7 +88,7 @@ runs:
       with:
         source_path: ${{ inputs.submodule_path }}
         destination_path: ${{ inputs.content_destination_path }}
-        rsync_exclude_from_file: ${{ inputs.rsync_exclude_from_file }}
+        items_to_sync: ${{ inputs.items_to_sync }}
         extra_rsync_args: ${{ inputs.extra_rsync_args }}
 
     - name: Enhance Markdown Files with Star Counts

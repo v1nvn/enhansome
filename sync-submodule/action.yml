@@ -1,111 +1,110 @@
 # awesome-list-toolkit/sync-submodule-content/action.yml
-name: 'Sync Submodule Content'
-description: 'Syncs content from a source (submodule) directory to a destination directory using rsync.'
+name: 'Sync Specific Submodule Content'
+description: 'Syncs specified files and directories from a source (submodule) to a destination, preserving relative paths.'
 author: 'Your Name/Organization'
 
 inputs:
   source_path:
-    description: 'Source directory (e.g., the submodule path like "origin"). Content from here will be copied.'
+    description: 'Source directory (e.g., the submodule path like "origin").'
     required: true
   destination_path:
     description: 'Destination directory (e.g., "." for repository root).'
     required: true
-  rsync_exclude_from_file:
+  items_to_sync:
     description: |
-      Filename of an rsync exclude patterns file located *within the source_path directory*.
-      If the file doesn't exist, default excludes are applied (especially for root syncs).
+      Space-separated list of files and/or directories to sync from the source_path.
+      Paths should be relative to the source_path.
+      Example: "README.md images/logo.png docs/"
     required: false
-    default: '.rsync-excludes' # e.g., origin/.rsync-excludes
+    default: 'README.md' # Default to syncing only README.md
   extra_rsync_args:
-    description: 'Any extra arguments to pass to rsync.'
+    description: 'Any extra arguments to pass to rsync. Use with caution, as --delete is not used by default by this action.'
     required: false
     default: ''
 
 runs:
   using: 'composite'
   steps:
-    - name: Sync content using rsync
+    - name: Sync specified content using rsync
       shell: bash
       run: |
         set -e
         SOURCE_DIR="${{ inputs.source_path }}"
         DEST_DIR="${{ inputs.destination_path }}"
-        EXCLUDE_FILENAME_IN_SOURCE="${{ inputs.rsync_exclude_from_file }}" # e.g., .rsync-excludes
+        ITEMS_TO_SYNC_STRING="${{ inputs.items_to_sync }}"
         EXTRA_ARGS="${{ inputs.extra_rsync_args }}"
 
-        echo "Syncing from '$SOURCE_DIR/' to '$DEST_DIR/'"
+        echo "Source Directory: $SOURCE_DIR"
+        echo "Destination Directory: $DEST_DIR"
+        echo "Items to Sync: \"$ITEMS_TO_SYNC_STRING\""
+        echo "Extra rsync args: \"$EXTRA_ARGS\""
 
-        # Ensure source path for rsync ends with a slash to copy contents, not the directory itself
+        if [ -z "$ITEMS_TO_SYNC_STRING" ]; then
+          echo "No items specified to sync. Exiting."
+          exit 0
+        fi
+
+        # Create a temporary file to list items for rsync's --files-from
+        SYNC_LIST_FILE=$(mktemp)
+        echo "Temporary sync list file created: $SYNC_LIST_FILE"
+
+        # Populate the sync list file from the space-separated input string
+        # Convert space-separated string to an array to handle items with spaces if quoted (though simple space separation is assumed)
+        read -r -a ITEMS_ARRAY <<< "$ITEMS_TO_SYNC_STRING"
+        
+        item_count=0
+        for item in "${ITEMS_ARRAY[@]}"; do
+          if [ -n "$item" ]; then # Ensure item is not an empty string
+            # Check if item exists in source. Rsync will also warn, but this provides an earlier heads-up.
+            FULL_SOURCE_ITEM_PATH="$SOURCE_DIR/$item" # Paths in ITEMS_ARRAY are relative to SOURCE_DIR
+            if [ ! -e "$FULL_SOURCE_ITEM_PATH" ]; then
+              echo "Warning: Item '$item' (resolved to '$FULL_SOURCE_ITEM_PATH') not found in source directory. Rsync will skip it."
+            fi
+            echo "$item" >> "$SYNC_LIST_FILE"
+            item_count=$((item_count + 1))
+          fi
+        done
+
+        if [ "$item_count" -eq 0 ]; then
+          echo "Sync list is empty after processing input items. Nothing to sync."
+          rm "$SYNC_LIST_FILE"
+          exit 0
+        fi
+
+        echo "--- Content of sync list file ($SYNC_LIST_FILE) ---"
+        cat "$SYNC_LIST_FILE"
+        echo "--- End of sync list file ---"
+
+        # Ensure destination directory exists
+        mkdir -p "$DEST_DIR"
+        
+        # Base rsync command:
+        # -a: archive mode (recursive, preserves symlinks, permissions, times, group, owner, devices)
+        # -v: verbose
+        # -R (--relative): Use full path names specified in --files-from. This is crucial for preserving directory structure.
+        # NO --delete by default. This action is additive.
+        # Source path must end with a slash for --files-from and -R to work as expected,
+        # making paths in the list relative to this source directory.
+        # Destination path should also end with a slash if it's a directory.
+
         SOURCE_FOR_RSYNC="$SOURCE_DIR"
         if [[ "$SOURCE_FOR_RSYNC" != */ ]]; then
           SOURCE_FOR_RSYNC="$SOURCE_FOR_RSYNC/"
         fi
-
-        # Ensure destination directory exists
-        mkdir -p "$DEST_DIR"
-
-        # Debug: List contents of source directory and check for an unexpected '.git' file/dir
-        echo "--- Debug: Listing root of source directory ($SOURCE_DIR) before rsync ---"
-        ls -la "$SOURCE_DIR"
-        if [ -f "$SOURCE_DIR/.git" ]; then
-          echo "CRITICAL WARNING: Source directory $SOURCE_DIR contains a FILE named .git!"
-          echo "This is highly unusual for a submodule's working tree and will likely cause rsync issues."
-        elif [ -d "$SOURCE_DIR/.git" ]; then
-          # This is also unexpected for a submodule's *content* that's meant to be synced.
-          # The actual .git metadata for a submodule lives in the parent repo's .git/modules/ directory.
-          echo "WARNING: Source directory $SOURCE_DIR contains a DIRECTORY named .git in its content."
-          echo "This is usually not part of a submodule's synced content. Consider excluding it via rsync_exclude_from_file."
+        
+        DEST_FOR_RSYNC="$DEST_DIR"
+        if [[ "$DEST_FOR_RSYNC" != */ ]]; then
+          DEST_FOR_RSYNC="$DEST_FOR_RSYNC/"
         fi
-        echo "--- End Debug ---"
 
-        RSYNC_CMD_BASE="rsync -av --checksum --delete $EXTRA_ARGS"
-        FINAL_RSYNC_CMD=""
-        USER_EXCLUDE_FILE_FULL_PATH="$SOURCE_DIR/$EXCLUDE_FILENAME_IN_SOURCE"
-
-        if [ -f "$USER_EXCLUDE_FILE_FULL_PATH" ]; then
-          # User has an exclude file in the source directory, use it.
-          # These patterns are relative to the source directory's content.
-          echo "Using user-provided exclude file (from source): $USER_EXCLUDE_FILE_FULL_PATH"
-          # Also add a general --exclude='.git/' to prevent copying any stray .git from source content,
-          # though the user's exclude file should ideally handle this if necessary.
-          FINAL_RSYNC_CMD="$RSYNC_CMD_BASE --exclude-from=$USER_EXCLUDE_FILE_FULL_PATH --exclude='.git/' \"$SOURCE_FOR_RSYNC\" \"$DEST_DIR\""
-        elif [ "$DEST_DIR" = "." ] || [ "$DEST_DIR" = "./" ]; then
-          # Destination is root, AND no user exclude file was found. Apply CRITICAL default excludes.
-          # These patterns are anchored to the root of the transfer (destination root) to protect parent repo files.
-          echo "Destination is root and no user exclude file found. Applying critical default protection excludes for destination."
-          
-          # Get the basename of the source directory (e.g., "origin" from "origin" or "path/to/origin")
-          SOURCE_DIR_BASENAME=$(basename "$SOURCE_DIR")
-
-          # Note: Using an array for excludes and then joining them can be safer than complex string concatenation.
-          # However, for shell: bash, direct string construction is common. Be mindful of quoting.
-          # The following uses direct string construction with escaped single quotes for --exclude values.
-          # This ensures that patterns like '/.git/' are passed correctly to rsync.
-          EXCLUDE_ARGS="--exclude='/.git/' \
-            --exclude='/.github/' \
-            --exclude='/.gitmodules' \
-            --exclude='/LICENSE' \
-            --exclude='/LICENSE.md' \
-            --exclude='/LICENSE.txt' \
-            --exclude='/${SOURCE_DIR_BASENAME}/' \
-            --exclude='.DS_Store'" # Common macOS file
-
-          FINAL_RSYNC_CMD="$RSYNC_CMD_BASE $EXCLUDE_ARGS \"$SOURCE_FOR_RSYNC\" \"$DEST_DIR\""
-        else
-          # Destination is NOT root, AND no user exclude file. Apply basic default exclude for source .git.
-          echo "Destination is not root ($DEST_DIR) and no user exclude file found. Applying minimal default excludes for source."
-          FINAL_RSYNC_CMD="$RSYNC_CMD_BASE --exclude='.git/' --exclude='.DS_Store' \"$SOURCE_FOR_RSYNC\" \"$DEST_DIR\""
-        fi
+        RSYNC_CMD="rsync -avR --files-from=$SYNC_LIST_FILE $EXTRA_ARGS \"$SOURCE_FOR_RSYNC\" \"$DEST_FOR_RSYNC\""
         
         echo "Executing rsync command:"
-        echo "$FINAL_RSYNC_CMD"
-        # Using eval here. Ensure inputs are controlled (they are from action.yml).
-        # If command string gets extremely complex, consider alternative execution methods.
-        eval "$FINAL_RSYNC_CMD"
+        echo "$RSYNC_CMD"
+        # Using eval for the command. Inputs are from action.yml.
+        eval "$RSYNC_CMD"
 
-        echo "Content sync finished."
-        if [ "$DEST_DIR" = "." ] || [ "$DEST_DIR" = "./" ]; then
-          echo "IMPORTANT: Rsync with --delete was used to sync to the repository root."
-          echo "Review the applied excludes to ensure all essential parent repository files were protected."
-          echo "Applied rsync command was: $FINAL_RSYNC_CMD"
-        fi
+        # Clean up the temporary file
+        rm "$SYNC_LIST_FILE"
+        echo "Temporary sync list file removed."
+        echo "Specified content synced."
