@@ -1,0 +1,74 @@
+# awesome-list-toolkit/sync-submodule-content/action.yml
+name: 'Sync Submodule Content'
+description: 'Syncs content from a source (submodule) directory to a destination directory using rsync.'
+author: 'Your Name/Organization'
+
+inputs:
+  source_path:
+    description: 'Source directory (e.g., the submodule path like "origin"). Content from here will be copied.'
+    required: true
+  destination_path:
+    description: 'Destination directory (e.g., "." for repository root).'
+    required: true
+  rsync_exclude_from_file:
+    description: |
+      Path to a file (relative to source_path) containing rsync exclude patterns.
+      If the file doesn't exist, it's ignored.
+    required: false
+    default: '.rsync-excludes'
+  extra_rsync_args:
+    description: 'Any extra arguments to pass to rsync.'
+    required: false
+    default: ''
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Sync content using rsync
+      shell: bash
+      run: |
+        set -e
+        SOURCE="${{ inputs.source_path }}"
+        DESTINATION="${{ inputs.destination_path }}"
+        EXCLUDE_FILE_NAME="${{ inputs.rsync_exclude_from_file }}"
+        EXTRA_ARGS="${{ inputs.extra_rsync_args }}"
+
+        echo "Syncing from '$SOURCE/' to '$DESTINATION/'"
+
+        # Ensure source path ends with a slash to copy contents, not the directory itself
+        if [[ "$SOURCE" != */ ]]; then
+          SOURCE="$SOURCE/"
+        fi
+
+        # Ensure destination directory exists
+        mkdir -p "$DESTINATION"
+
+        RSYNC_CMD="rsync -av --delete --checksum $EXTRA_ARGS"
+
+        # Check if a custom exclude file exists within the source directory
+        ABSOLUTE_EXCLUDE_FILE_PATH="$SOURCE$EXCLUDE_FILE_NAME"
+        if [ -f "$ABSOLUTE_EXCLUDE_FILE_PATH" ]; then
+          echo "Using exclude file: $ABSOLUTE_EXCLUDE_FILE_PATH"
+          RSYNC_CMD="$RSYNC_CMD --exclude-from=$ABSOLUTE_EXCLUDE_FILE_PATH"
+        else
+          echo "No exclude file found at $ABSOLUTE_EXCLUDE_FILE_PATH. Proceeding without it."
+          # Default excludes to prevent common issues if no exclude file is provided.
+          # These protect the parent repo's .git, .github, and the submodule directory itself if syncing to root.
+          RSYNC_CMD="$RSYNC_CMD --exclude='.git/' --exclude='.github/' --exclude='${{ inputs.source_path }}/'"
+        fi
+        
+        # Add common excludes that should almost always apply when copying from a submodule
+        # to the root of a parent repository. This prevents the submodule's own .git history
+        # from being copied into the parent's working directory if not already handled by exclude file.
+        RSYNC_CMD="$RSYNC_CMD --exclude='.git/'"
+
+
+        # Execute rsync
+        echo "Executing: $RSYNC_CMD \"$SOURCE\" \"$DESTINATION\""
+        eval "$RSYNC_CMD \"$SOURCE\" \"$DESTINATION\""
+
+        echo "Content synced."
+        echo "IMPORTANT: Review rsync's --delete behavior. It makes the destination match the source, deleting files in destination not in source (respecting excludes)."
+        echo "If destination is '.', ensure your exclude patterns correctly protect files like '.github/workflows/main.yml', 'LICENSE', '.gitmodules' of the PARENT repository."
+        echo "The provided default for rsync_exclude_from_file is '.rsync-excludes' (expected inside the submodule)."
+        echo "If this file is not present in the submodule, basic excludes for .git/ and .github/ are applied."

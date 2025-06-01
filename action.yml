@@ -1,0 +1,119 @@
+# awesome-list-toolkit/action.yml
+name: 'Awesome List Enhancer (Composite)'
+description: 'Updates submodule, syncs its content, adds GitHub stars, and commits/pushes changes.'
+author: 'Your Name/Organization'
+
+inputs:
+  github_token:
+    description: 'GitHub token for fetching star counts and committing. Usually ${{ secrets.GITHUB_TOKEN }}.'
+    required: true
+  submodule_path:
+    description: 'Path to the submodule directory within the main repository.'
+    required: false
+    default: 'origin'
+  content_destination_path:
+    description: 'Path in the main repository where submodule content should be synced to (e.g., "." for root).'
+    required: false
+    default: '.'
+  files_to_enhance:
+    description: 'Space-separated list of markdown file paths (relative to content_destination_path) to enhance with stars.'
+    required: false
+    default: 'README.md'
+  rsync_exclude_from_file:
+    description: |
+      Path to a file containing rsync exclude patterns.
+      Each pattern should be on a new line.
+      These patterns are relative to the source_path of the rsync operation.
+    required: false
+    default: '.rsync-excludes'
+  extra_rsync_args:
+    description: 'Any extra arguments to pass to rsync for the sync-submodule-content step.'
+    required: false
+    default: ''
+  # Commit and Push Inputs
+  do_commit:
+    description: 'Whether to commit and push changes after enhancement.'
+    required: false
+    default: 'true' # Changed from skip_commit_and_push to do_commit for clarity
+  commit_message:
+    description: 'Commit message for the changes.'
+    required: false
+    default: 'docs(enhance): ✨ Auto-update list with latest content & stars'
+  commit_user_name:
+    description: 'Name for the commit author.'
+    required: false
+    default: 'GitHub Actions Bot'
+  commit_user_email:
+    description: 'Email for the commit author.'
+    required: false
+    default: 'actions-bot@users.noreply.github.com'
+  commit_author: # stefanzweifel/git-auto-commit-action uses this format
+    description: 'Commit author string. Defaults to "commit_user_name <commit_user_email>".'
+    required: false
+    # Default will be constructed in the step if not provided
+  commit_branch:
+    description: 'Branch to commit to. Defaults to the current branch.'
+    required: false
+  commit_file_pattern:
+    description: 'File pattern to add to commit. Defaults to all changes "."'
+    required: false
+    default: '.'
+  commit_options:
+    description: 'Additional options for git commit (e.g., --no-verify).'
+    required: false
+    default: ''
+  push_options:
+    description: 'Additional options for git push (e.g., --force).'
+    required: false
+    default: ''
+
+
+outputs:
+  changes_committed:
+    description: "True if changes were committed, false otherwise."
+    value: ${{ steps.commit_changes.outputs.changes_committed }} # Assuming stefanzweifel action provides this
+
+runs:
+  using: "composite"
+  steps:
+    - name: Update Submodule
+      id: update_submodule
+      uses: ./update-submodule
+      with:
+        submodule_path: ${{ inputs.submodule_path }}
+
+    - name: Sync Submodule Content
+      id: sync_content
+      uses: ./sync-submodule
+      with:
+        source_path: ${{ inputs.submodule_path }}
+        destination_path: ${{ inputs.content_destination_path }}
+        rsync_exclude_from_file: ${{ inputs.rsync_exclude_from_file }}
+        extra_rsync_args: ${{ inputs.extra_rsync_args }}
+
+    - name: Enhance Markdown Files with Star Counts
+      id: enhance_files
+      uses: ./enhance-readme
+      with:
+        github_token: ${{ inputs.github_token }} # GITHUB_TOKEN is used here for API calls
+        markdown_files: ${{ inputs.files_to_enhance }}
+        working_directory: ${{ inputs.content_destination_path }}
+
+    - name: Commit and Push Changes
+      id: commit_changes
+      if: inputs.do_commit == 'true'
+      uses: stefanzweifel/git-auto-commit-action@v5
+      with:
+        commit_message: ${{ inputs.commit_message }}
+        commit_user_name: ${{ inputs.commit_user_name }}
+        commit_user_email: ${{ inputs.commit_user_email }}
+        commit_author: ${{ inputs.commit_author || format('{0} <{1}>', inputs.commit_user_name, inputs.commit_user_email) }}
+        branch: ${{ inputs.commit_branch }}
+        file_pattern: ${{ inputs.commit_file_pattern }}
+        commit_options: ${{ inputs.commit_options }}
+        push_options: ${{ inputs.push_options }}
+        # The GITHUB_TOKEN with `contents: write` permission is implicitly used by stefanzweifel/git-auto-commit-action
+        # when running in a workflow that has this permission.
+        # No explicit token input is usually needed for the action itself if the workflow token is sufficient.
+        # However, the action does accept a `token` input if needed for specific scenarios.
+        # We are relying on the overall workflow's GITHUB_TOKEN.

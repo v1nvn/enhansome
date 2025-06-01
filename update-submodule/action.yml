@@ -1,0 +1,45 @@
+# awesome-list-toolkit/update-submodule/action.yml
+name: 'Update Git Submodule'
+description: 'Initializes and updates a Git submodule to the latest commit on its default branch.'
+author: 'Your Name/Organization'
+
+inputs:
+  submodule_path:
+    description: 'Path to the submodule directory to update.'
+    required: true
+    default: 'origin' # A common default name
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Update Submodule
+      shell: bash
+      run: |
+        set -e
+        echo "Updating submodule at path: ${{ inputs.submodule_path }}"
+        if [ ! -d "${{ inputs.submodule_path }}/.git" ]; then
+          echo "Submodule not initialized or path incorrect. Initializing..."
+          # Initialize if .git folder is missing (might happen on first checkout without recursive)
+          git submodule update --init --recursive "${{ inputs.submodule_path }}"
+        else
+          echo "Submodule already initialized."
+        fi
+        # Go into the submodule directory to ensure commands like pull work as expected
+        # and to fetch the latest from its own remote.
+        cd "${{ inputs.submodule_path }}"
+        git fetch --all
+        # Get the default branch of the submodule
+        DEFAULT_BRANCH=$(git remote show origin | grep 'HEAD branch' | cut -d' ' -f5)
+        if [ -z "$DEFAULT_BRANCH" ]; then
+          echo "Could not determine default branch for submodule. Exiting."
+          exit 1
+        fi
+        echo "Default branch for submodule is: $DEFAULT_BRANCH"
+        git checkout "$DEFAULT_BRANCH"
+        git pull origin "$DEFAULT_BRANCH" --ff-only # Fast-forward only pull
+        cd ..
+        # After updating the submodule, its new commit hash needs to be
+        # registered in the parent repository.
+        # This is usually done by `git add submodule_path` in the parent repo,
+        # which the calling workflow will handle before committing.
+        echo "Submodule ${{ inputs.submodule_path }} updated. Parent repo should 'git add ${{ inputs.submodule_path }}' to stage changes."
