@@ -78,13 +78,13 @@ runs:
   steps:
     - name: Update Submodule
       id: update_submodule
-      uses: ./update-submodule
+      uses: v1nvn/enhansome/update-submodule@main
       with:
         submodule_path: ${{ inputs.submodule_path }}
 
     - name: Sync Submodule Content
       id: sync_content
-      uses: ./sync-submodule
+      uses: v1nvn/enhansome/sync-submodule@main
       with:
         source_path: ${{ inputs.submodule_path }}
         destination_path: ${{ inputs.content_destination_path }}
@@ -93,7 +93,7 @@ runs:
 
     - name: Enhance Markdown Files with Star Counts
       id: enhance_files
-      uses: ./enhance-readme
+      uses: v1nvn/enhansome//enhance-readme@main
       with:
         github_token: ${{ inputs.github_token }} # GITHUB_TOKEN is used here for API calls
         markdown_files: ${{ inputs.files_to_enhance }}
