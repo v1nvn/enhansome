@@ -28,7 +28,6 @@ RUN npm ci --only=production
 COPY src ./src
 COPY tsconfig.json .
 RUN npm install typescript --global # or add as devDependency and use npx tsc
-RUN npm install --save-dev @types/node # if not already in package.json devDependencies
 RUN tsc # This will compile src/*.ts to dist/*.js based on tsconfig.json
 
 COPY entrypoint.sh .
