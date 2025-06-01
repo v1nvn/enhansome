@@ -5,7 +5,7 @@ author: 'Your Name/Organization'
 
 inputs:
   github_token:
-    description: 'GitHub token for fetching star counts and committing. Usually ${{ secrets.GITHUB_TOKEN }}.'
+    description: 'GitHub token for fetching star counts and committing.'
     required: true
   submodule_path:
     description: 'Path to the submodule directory within the main repository.'
