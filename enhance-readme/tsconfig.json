@@ -11,13 +11,17 @@
     "moduleResolution": "node",
     "resolveJsonModule": true,
     "sourceMap": true,
-    "declaration": true
+    "declaration": true,
+    "types": [
+      "node",
+      "jest"
+    ],
   },
   "include": [
-    "src/**/*.ts"
+    "src/**/*.ts",
+    "**/*.test.ts"
   ],
   "exclude": [
     "node_modules",
-    "**/*.test.ts"
   ]
 }

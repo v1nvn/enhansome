@@ -8,7 +8,8 @@
     "start": "node dist/main.js",
     "lint": "eslint src/**/*.ts",
     "format": "prettier --write src/**/*.ts",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest",
+    "test:watch": "jest --watchAll"
   },
   "keywords": [
     "github",
@@ -23,7 +24,11 @@
     "axios": "^1.9.0"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^22.15.29",
+    "axios-mock-adapter": "^2.1.0",
+    "jest": "^30.0.2",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.8.3"
   }
 }
