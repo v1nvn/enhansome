@@ -1,0 +1,51 @@
+name: Release Please & Update Major Tag
+
+on:
+  # Allows you to run this workflow manually from the Actions tab on GitHub
+  workflow_dispatch:
+
+  # (Optional but Recommended) Runs automatically on a schedule.
+  # This example runs at 4:30 AM UTC every Monday.
+  # In your local time (IST), that is 10:00 AM every Monday morning.
+  # schedule:
+  #   - cron: '30 4 * * 1'
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      release_tag: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.PAT_FOR_RELEASES }}
+
+  update-major-tag:
+    needs: release-please
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.PAT_FOR_RELEASES }}
+
+      - name: Get Major Version
+        id: get_major
+        run: echo "major_version=v$(echo ${{ needs.release-please.outputs.release_tag }} | cut -d'.' -f1 | cut -d'v' -f2)" >> $GITHUB_OUTPUT
+
+      - name: Update and Push Major Version Tag
+        run: |
+          # Configure git user for this commit
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          MAJOR_VERSION="${{ steps.get_major.outputs.major_version }}"
+          RELEASE_TAG="${{ needs.release-please.outputs.release_tag }}"
+          
+          echo "Updating tag '$MAJOR_VERSION' to point to '$RELEASE_TAG'"
+          
+          # Force-move the major version tag (e.g., v1) to the new release commit
+          git tag -f "$MAJOR_VERSION" "$RELEASE_TAG"
+          git push -f origin "$MAJOR_VERSION"

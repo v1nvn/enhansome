@@ -31,7 +31,9 @@ FROM node:24-slim AS runner
 LABEL stage="runner"
 LABEL description="Enhances markdown files with GitHub star counts."
 LABEL maintainer="v1nvn"
-LABEL version="1.0.0"
+# x-release-please-start-version
+LABEL version="1.1.0"
+# x-release-please-end
 
 WORKDIR /app
 
