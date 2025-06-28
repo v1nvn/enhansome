@@ -1,10 +1,17 @@
-import axios from "axios";
-import MockAdapter from "axios-mock-adapter";
-import * as core from "@actions/core";
-import { parseGitHubUrl, getStarCount } from "./github";
+import axios from 'axios';
+import MockAdapter from 'axios-mock-adapter';
+import * as core from '@actions/core';
+import { parseGitHubUrl, getStarCount } from './github.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'; // It's good practice to import vi
 
-// Mock the @actions/core module
-jest.mock("@actions/core");
+// Use vi instead of jest for mocking
+vi.mock('@actions/core', () => ({
+  ...vi.importActual('@actions/core'),
+  error: vi.fn(),
+  warning: vi.fn(),
+  debug: vi.fn(),
+}));
+
 
 describe("github.ts", () => {
   let mockAxios: MockAdapter;

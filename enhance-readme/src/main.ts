@@ -1,5 +1,5 @@
 import * as core from '@actions/core';
-import { processMarkdownFile } from './markdown';
+import { processMarkdownFile } from './markdown.js';
 
 /**
  * Main function for the GitHub Action.
