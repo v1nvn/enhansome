@@ -10,7 +10,7 @@ The primary goal is to automate tasks like keeping content synchronized with an 
 
 This toolkit provides the following actions:
 
-1. **Composite: Awesome List Enhancer** (`v1nvn/enhansome@v1.3.0`) <!-- x-release-please-version -->
+1. **Composite: Awesome List Enhancer** (`v1nvn/enhansome@v1.3.1`) <!-- x-release-please-version -->
 
     - **Description**: This is the main composite action that orchestrates the entire process:
       1. Updates a specified Git submodule.
@@ -19,17 +19,17 @@ This toolkit provides the following actions:
     - **Usage**: Ideal for a workflow that regularly updates an enhanced version of an external awesome list.
     - **Path in toolkit**: `/action.yml` (root of this repository)
 
-2. **Individual: Update Git Submodule** (`v1nvn/enhansome/update-submodule@v1.3.0`) <!-- x-release-please-version -->
+2. **Individual: Update Git Submodule** (`v1nvn/enhansome/update-submodule@v1.3.1`) <!-- x-release-please-version -->
 
     - **Description**: Initializes and updates a Git submodule to the latest commit on its default branch.
     - **Path in toolkit**: `update-submodule/action.yml`
 
-3. **Individual: Sync Submodule Content** (`v1nvn/enhansome/sync-submodule@v1.3.0`) <!-- x-release-please-version -->
+3. **Individual: Sync Submodule Content** (`v1nvn/enhansome/sync-submodule@v1.3.1`) <!-- x-release-please-version -->
 
     - **Description**: Syncs content from a source directory (typically a submodule) to a destination directory using `rsync`. It supports including files and directories.
     - **Path in toolkit**: `sync-submodule/action.yml`
 
-4. **Individual: Enhance Markdown with GitHub Stars** (`v1nvn/enhansome/enhance-readme@v1.3.0`) <!-- x-release-please-version -->
+4. **Individual: Enhance Markdown with GitHub Stars** (`v1nvn/enhansome/enhance-readme@v1.3.1`) <!-- x-release-please-version -->
     - **Description**: A Docker-based action that parses specified markdown files, identifies GitHub repository links, fetches their star counts via the GitHub API, and appends this information next to the links.
     - **Path in toolkit**: `enhance-readme-stars/action.yml`
 
@@ -89,7 +89,7 @@ jobs:
           submodules: "true" # Initialize submodules, though our action will update 'origin'
 
       - name: Run Awesome List Enhancer and Commit
-        uses: v1nvn/enhansome@v1.3.0 # x-release-please-version
+        uses: v1nvn/enhansome@v1.3.1 # x-release-please-version
         id: enhansome
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}

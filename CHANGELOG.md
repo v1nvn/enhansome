@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/v1nvn/enhansome/compare/v1.3.0...v1.3.1) (2025-06-28)
+
+
+### Bug Fixes
+
+* major minor version tagging ([2e0e835](https://github.com/v1nvn/enhansome/commit/2e0e835a22511ea9c8b37e3cf4032a50041f3273))
+
 ## [1.3.0](https://github.com/v1nvn/enhansome/compare/v1.2.1...v1.3.0) (2025-06-28)
 
 
