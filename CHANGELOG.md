@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.1](https://github.com/v1nvn/enhansome/compare/enhansome-v1.2.0...enhansome-v1.2.1) (2025-06-28)
+
+
+### Bug Fixes
+
+* release tags ([e469412](https://github.com/v1nvn/enhansome/commit/e469412fb6dc8c8d1cf68ab583ef8ef5cd9d78b2))
+* trigger workflow on push to main ([41ec792](https://github.com/v1nvn/enhansome/commit/41ec7928d0e0b48a6ff3f1e439135fea92c61951))
+
 ## [1.2.0](https://github.com/v1nvn/enhansome/compare/enhansome-v1.1.0...enhansome-v1.2.0) (2025-06-28)
 
 
