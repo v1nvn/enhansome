@@ -50,11 +50,10 @@ jobs:
           # The '|| true' part ensures the script doesn't fail if the tags don't exist yet.
           git tag -d "$MAJOR" || true
           git tag -d "$MINOR" || true
-          git push origin "$MAJOR" "$MINOR" || true
-          
-          # Create new local annotated tags pointing to the release commit
-          git tag -a "$MAJOR" -m "Release $MAJOR"
-          git tag -a "$MINOR" -m "Release $MINOR"
-          
-          # Push the new tags to the remote
-          git push origin "$MAJOR" "$MINOR"
+          git push origin ":v$MAJOR" || true
+          git push origin ":v$MINOR" || true
+          git tag -a "v$MAJOR" -m "Release v$MAJOR"
+          git tag -a "v$MINOR" -m "Release v$MINOR"
+          git push origin "v$MAJOR"
+          git push origin "v$MINOR"
+
