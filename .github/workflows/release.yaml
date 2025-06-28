@@ -18,7 +18,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
-      release_tag: ${{ steps.release.outputs.tag_name }}
+      major: ${{ steps.release.outputs.major }}
+      minor: ${{ steps.release.outputs.minor }}
+
     steps:
       - uses: googleapis/release-please-action@v4
         id: release
@@ -34,21 +36,25 @@ jobs:
         with:
           token: ${{ secrets.PAT_FOR_RELEASES }}
 
-      - name: Get Major Version
-        id: get_major
-        run: echo "major_version=v$(echo ${{ needs.release-please.outputs.release_tag }} | cut -d'.' -f1 | cut -d'v' -f2)" >> $GITHUB_OUTPUT
-
       - name: Update and Push Major Version Tag
         run: |
           # Configure git user for this commit
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          MAJOR_VERSION="${{ steps.get_major.outputs.major_version }}"
-          RELEASE_TAG="${{ needs.release-please.outputs.release_tag }}"
+          MAJOR="${{ needs.release-please.outputs.major }}"
+          MINOR="${{ needs.release-please.outputs.major }}.${{ needs.release-please.outputs.minor }}"
+          echo "Updating tags: Major '$MAJOR', Minor '$MINOR'"
           
-          echo "Updating tag '$MAJOR_VERSION' to point to '$RELEASE_TAG'"
+          # Delete the old tags locally and on the remote.
+          # The '|| true' part ensures the script doesn't fail if the tags don't exist yet.
+          git tag -d "$MAJOR" || true
+          git tag -d "$MINOR" || true
+          git push origin "$MAJOR" "$MINOR" || true
           
-          # Force-move the major version tag (e.g., v1) to the new release commit
-          git tag -f "$MAJOR_VERSION" "$RELEASE_TAG"
-          git push -f origin "$MAJOR_VERSION"
+          # Create new local annotated tags pointing to the release commit
+          git tag -a "$MAJOR" -m "Release $MAJOR"
+          git tag -a "$MINOR" -m "Release $MINOR"
+          
+          # Push the new tags to the remote
+          git push origin "$MAJOR" "$MINOR"
