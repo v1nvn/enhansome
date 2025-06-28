@@ -1,6 +1,9 @@
 name: Release Please & Update Major Tag
 
 on:
+  push:
+    branches:
+      - main
   # Allows you to run this workflow manually from the Actions tab on GitHub
   workflow_dispatch:
 
