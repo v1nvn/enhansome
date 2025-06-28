@@ -76,15 +76,24 @@ outputs:
 runs:
   using: "composite"
   steps:
+    - name: Link action repository for local calls
+      shell: bash
+      run: |
+        # Create a temporary, known directory for our links
+        mkdir -p ./.github/actions
+        # Link the root of this action's source code into the user's workspace
+        ln -s "${{ github.action_path }}" ./.github/actions/enhansome
+        echo "Created symlink to action source at ./.github/actions/enhansome"
+
     - name: Update Submodule
       id: update_submodule
-      uses: v1nvn/enhansome/update-submodule@v1
+      uses: ./.github/actions/enhansome/update-submodule
       with:
         submodule_path: ${{ inputs.submodule_path }}
 
     - name: Sync Submodule Content
       id: sync_content
-      uses: v1nvn/enhansome/sync-submodule@v1
+      uses: ./.github/actions/enhansome/sync-submodule
       with:
         source_path: ${{ inputs.submodule_path }}
         destination_path: ${{ inputs.content_destination_path }}
@@ -93,7 +102,7 @@ runs:
 
     - name: Enhance Markdown Files with Star Counts
       id: enhance_files
-      uses: v1nvn/enhansome//enhance-readme@v1
+      uses: ./.github/actions/enhansome/enhance-readme
       with:
         github_token: ${{ inputs.github_token }} # GITHUB_TOKEN is used here for API calls
         markdown_files: ${{ inputs.files_to_enhance }}
@@ -117,3 +126,9 @@ runs:
         # No explicit token input is usually needed for the action itself if the workflow token is sufficient.
         # However, the action does accept a `token` input if needed for specific scenarios.
         # We are relying on the overall workflow's GITHUB_TOKEN.
+
+    - name: Cleanup action repository link
+      # This is important to ensure the symlink is removed after the action runs
+      if: always()
+      shell: bash
+      run: rm -rf ./.github/actions
