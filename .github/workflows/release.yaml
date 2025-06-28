@@ -42,8 +42,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          MAJOR="${{ needs.release-please.outputs.major }}"
-          MINOR="${{ needs.release-please.outputs.major }}.${{ needs.release-please.outputs.minor }}"
+          MAJOR="v${{ needs.release-please.outputs.major }}"
+          MINOR="v${{ needs.release-please.outputs.major }}.${{ needs.release-please.outputs.minor }}"
           echo "Updating tags: Major '$MAJOR', Minor '$MINOR'"
           
           # Delete the old tags locally and on the remote.
