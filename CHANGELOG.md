@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.2](https://github.com/v1nvn/enhansome/compare/v1.3.1...v1.3.2) (2025-06-28)
+
+
+### Bug Fixes
+
+* major/minor tag name regression ([2ea906d](https://github.com/v1nvn/enhansome/commit/2ea906d3ab3e0b8836cf871d900247aeae1ee86c))
+
 ## [1.3.1](https://github.com/v1nvn/enhansome/compare/v1.3.0...v1.3.1) (2025-06-28)
 
 
