@@ -6,13 +6,44 @@ import remarkGfm from "remark-gfm";
 import remarkStringify from "remark-stringify";
 import { visit } from "unist-util-visit";
 import type { Root, Link } from "mdast"; // Markdown AST types
-import { getStarCount, parseGitHubUrl } from "./github.js";
+import { getRepoInfo, parseGitHubUrl, RepoInfoDetails } from "./github.js";
 
 /**
- * Processes a single markdown file to find GitHub links and append star counts.
- * This function uses an AST parser to safely modify the markdown content,
- * correctly ignoring links inside code blocks.
- *
+ * Formats an ISO date string into YYYY-MM-DD format.
+ * @param isoString The date string to format.
+ */
+function formatDate(isoString: string | null): string {
+  if (!isoString) return "";
+  return new Date(isoString).toISOString().split("T")[0];
+}
+
+/**
+ * Builds the text for the information badge.
+ * @param info The repository information object.
+ */
+function formatRepoInfo(info: RepoInfoDetails): string {
+  // If the repo is archived, that's the most important piece of information.
+  if (info.archived) {
+    return " ⚠️ Archived";
+  }
+
+  const parts: string[] = [];
+  parts.push(`⭐ ${info.stargazers_count.toLocaleString()}`);
+  parts.push(`🐛 ${info.open_issues_count.toLocaleString()}`);
+
+  if (info.language) {
+    parts.push(`🌐 ${info.language}`);
+  }
+
+  if (info.pushed_at) {
+    parts.push(`📅 ${formatDate(info.pushed_at)}`);
+  }
+
+  return ` ${parts.join(" | ")}`;
+}
+
+/**
+ * Processes a single markdown file to find GitHub links and append rich info badges.
  * @param filePath Path to the markdown file.
  * @param token GitHub API token.
  */
@@ -23,18 +54,14 @@ export async function processMarkdownFile(
   core.info(`Processing file: ${filePath}`);
   try {
     const originalContent = await fs.readFile(filePath, "utf-8");
-    let changesMade = false;
 
-    // The unified processor pipeline
     const processor = unified()
-      .use(remarkParse) // 1. Parse markdown text into a syntax tree (mdast)
-      .use(remarkGfm) // 2. Add support for GitHub Flavored Markdown (autolinks etc.)
-      .use(remarkStarBadges, { token }) // 3. Our custom plugin to add star badges
-      .use(remarkStringify); // 4. Turn the modified syntax tree back into markdown
+      .use(remarkParse)
+      .use(remarkGfm)
+      .use(remarkInfoBadges, { token })
+      .use(remarkStringify);
 
-    // Process the content
     const vfile = await processor.process(originalContent);
-    // Get the content stringified by the processor
     let processedContent = String(vfile);
 
     // Manually enforce the "minimal change" rule for the final newline.
@@ -42,15 +69,13 @@ export async function processMarkdownFile(
       originalContent.endsWith("\n") || originalContent === "";
     const processedHasNewline = processedContent.endsWith("\n");
 
-    // If the processor added a newline where there wasn't one, remove it.
     if (processedHasNewline && !originalHadNewline) {
       processedContent = processedContent.slice(0, -1);
     }
 
-    // A custom property can be set on the vfile to track changes
     if (vfile.data.changesMade) {
       await fs.writeFile(filePath, processedContent, "utf-8");
-      core.info(`Successfully updated ${filePath} with star counts.`);
+      core.info(`Successfully updated ${filePath} with rich info badges.`);
     } else {
       core.info(`No changes made to ${filePath}.`);
     }
@@ -63,67 +88,61 @@ export async function processMarkdownFile(
 }
 
 /**
- * A custom 'remark' plugin for the 'unified' processor.
- * A plugin is a function that can receive options and returns a "transformer".
- * A transformer is a function that operates on the AST.
+ * A custom 'remark' plugin to add rich information badges to GitHub links.
  */
-function remarkStarBadges(options: { token: string }) {
-  // The transformer function
+function remarkInfoBadges(options: { token: string }) {
   return async function (tree: Root, file: any) {
     const { token } = options;
     const linkNodesToUpdate: { node: Link; parent: any; index: number }[] = [];
 
-    // First, synchronously visit all link nodes and collect the ones we might update.
-    // We do this to avoid modifying the tree while iterating over it.
+    // Synchronously collect all link nodes that might need a badge.
     visit(tree, "link", (node: Link, index, parent) => {
-      if (index === undefined || !parent) return; // Should not happen
+      if (index === undefined || !parent) return;
 
-      // Check if the next sibling is already a star badge. If so, skip.
+      // Check if the next sibling is already a badge from this action.
       const nextNode = parent.children[index + 1];
       if (
         nextNode &&
         nextNode.type === "text" &&
-        /^\s*⭐/.test(nextNode.value)
+        /^\s*(⭐|⚠️)/.test(nextNode.value)
       ) {
         return;
       }
 
-      const repoInfo = parseGitHubUrl(node.url);
-      if (repoInfo) {
+      const repoDetails = parseGitHubUrl(node.url);
+      if (repoDetails) {
         linkNodesToUpdate.push({ node, parent, index });
       }
     });
 
     if (linkNodesToUpdate.length === 0) {
-      return; // No links to update, exit early.
+      return;
     }
 
-    // Now, process the collected nodes asynchronously
-    const starPromises = linkNodesToUpdate.map(async ({ node }) => {
-      const repoInfo = parseGitHubUrl(node.url)!; // We know it's valid from the visit step
-      return getStarCount(repoInfo.owner, repoInfo.repo, token);
+    // Asynchronously fetch information for all collected links.
+    const infoPromises = linkNodesToUpdate.map(async ({ node }) => {
+      const repoDetails = parseGitHubUrl(node.url)!;
+      return getRepoInfo(repoDetails.owner, repoDetails.repo, token);
     });
 
-    const starCounts = await Promise.all(starPromises);
+    const repoInfos = await Promise.all(infoPromises);
     let changesMade = false;
 
-    // Iterate backwards to safely splice new nodes into the children array
+    // Iterate backwards to safely splice new nodes into the tree.
     for (let i = linkNodesToUpdate.length - 1; i >= 0; i--) {
       const { parent, index } = linkNodesToUpdate[i];
-      const starCount = starCounts[i];
+      const info = repoInfos[i];
 
-      if (starCount !== null) {
+      if (info) {
         const badgeNode = {
           type: "text",
-          value: ` ⭐ ${starCount.toLocaleString()}`,
+          value: formatRepoInfo(info),
         };
-        // Insert the badge right after the link node
         parent.children.splice(index + 1, 0, badgeNode);
         changesMade = true;
       }
     }
 
-    // Let the main function know if we made changes
     if (changesMade) {
       file.data.changesMade = true;
     }

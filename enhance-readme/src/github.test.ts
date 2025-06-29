@@ -1,8 +1,8 @@
 import axios from "axios";
 import MockAdapter from "axios-mock-adapter";
 import * as core from "@actions/core";
-import { parseGitHubUrl, getStarCount } from "./github.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"; // It's good practice to import vi
+import { parseGitHubUrl, getRepoInfo, RepoInfoDetails } from "./github.js";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@actions/core", () => ({
   ...vi.importActual("@actions/core"),
@@ -17,6 +17,7 @@ describe("github.ts", () => {
   beforeEach(() => {
     mockAxios = new MockAdapter(axios);
     vi.useFakeTimers();
+    vi.clearAllMocks(); // Clear mocks before each test
   });
 
   afterEach(() => {
@@ -56,115 +57,105 @@ describe("github.ts", () => {
     });
   });
 
-  describe("getStarCount", () => {
+  describe("getRepoInfo", () => {
     const owner = "test-owner";
     const repo = "test-repo";
     const token = "test-token";
     const apiUrl = `https://api.github.com/repos/${owner}/${repo}`;
+    const mockRepoInfo: RepoInfoDetails = {
+      stargazers_count: 1234,
+      pushed_at: "2025-06-29T10:00:00Z",
+      open_issues_count: 42,
+      language: "TypeScript",
+      archived: false,
+    };
 
-    it("should return star count on successful API call", async () => {
-      const stars = 1234;
-      mockAxios.onGet(apiUrl).reply(200, {
-        stargazers_count: stars,
-      });
+    it("should return repo info on successful API call", async () => {
+      mockAxios.onGet(apiUrl).reply(200, mockRepoInfo);
 
-      const result = await getStarCount(owner, repo, token);
-      expect(result).toBe(stars);
+      const result = await getRepoInfo(owner, repo, token);
+      expect(result).toEqual(mockRepoInfo);
     });
 
-    it("should return null if API call fails", async () => {
+    it("should return null if API call fails with a non-retriable error", async () => {
       mockAxios.onGet(apiUrl).reply(404, { message: "Not Found" });
 
-      const result = await getStarCount(owner, repo, token);
+      const result = await getRepoInfo(owner, repo, token);
       expect(result).toBeNull();
       expect(core.error).toHaveBeenCalledWith(
         expect.stringContaining(
-          `Failed to fetch star count for ${owner}/${repo}: Request failed with status code 404 (Status: 404)`
+          `Failed to fetch repo info for ${owner}/${repo}: Request failed with status code 404 (Status: 404)`
         )
       );
     });
 
-    it("should return null if response data is missing star count", async () => {
+    it("should return info with undefined properties for partial API responses", async () => {
       mockAxios.onGet(apiUrl).reply(200, {
-        // Missing stargazers_count
+        // Intentionally partial response
         name: "test-repo",
+        archived: true,
       });
 
-      const result = await getStarCount(owner, repo, token);
-      expect(result).toBeNull();
-      expect(core.warning).toHaveBeenCalledWith(
-        expect.stringContaining(
-          `Received an unexpected successful response for ${owner}/${repo}`
-        )
-      );
+      const result = await getRepoInfo(owner, repo, token);
+      expect(result).toEqual({
+        stargazers_count: undefined,
+        pushed_at: undefined,
+        open_issues_count: undefined,
+        language: undefined,
+        archived: true,
+      });
+      // In the new implementation, this is not a warning condition
+      expect(core.warning).not.toHaveBeenCalled();
     });
 
     it("should retry on a 403 rate-limit error and then succeed", async () => {
       const resetTime = Math.floor(Date.now() / 1000) + 2; // 2 seconds in the future
 
-      // Setup a sequence of responses: the first fails, the second succeeds.
       mockAxios
         .onGet(apiUrl)
         .replyOnce(
           403,
           { message: "API rate limit exceeded" },
-          // GitHub API headers for rate limiting
           {
             "x-ratelimit-remaining": "0",
             "x-ratelimit-reset": String(resetTime),
           }
         )
         .onGet(apiUrl)
-        .replyOnce(200, { stargazers_count: 999 });
+        .replyOnce(200, mockRepoInfo);
 
-      // Call the function but don't await it immediately
-      const getStarCountPromise = getStarCount(owner, repo, token);
-
-      // Advance the fake clock to trigger the retry
+      const getInfoPromise = getRepoInfo(owner, repo, token);
       await vi.advanceTimersToNextTimerAsync();
+      const result = await getInfoPromise;
 
-      // Now await the final result
-      const result = await getStarCountPromise;
-
-      // Assertions
-      expect(result).toBe(999);
+      expect(result).toEqual(mockRepoInfo);
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining("Primary rate limit hit")
       );
-      expect(mockAxios.history.get.length).toBe(2); // Check that two API calls were made
+      expect(mockAxios.history.get.length).toBe(2);
     });
 
     it("should respect the Retry-After header on a 429 error and then succeed", async () => {
-      // Setup a sequence: first fails with 429, second succeeds
       mockAxios
         .onGet(apiUrl)
-        .replyOnce(
-          429,
-          { message: "Throttled" },
-          // Secondary rate limit header
-          { "retry-after": "2" } // Wait for 2 seconds
-        )
+        .replyOnce(429, { message: "Throttled" }, { "retry-after": "2" })
         .onGet(apiUrl)
-        .replyOnce(200, { stargazers_count: 777 });
+        .replyOnce(200, mockRepoInfo);
 
-      const getStarCountPromise = getStarCount(owner, repo, token);
+      const getInfoPromise = getRepoInfo(owner, repo, token);
+      await vi.advanceTimersByTimeAsync(3000);
+      const result = await getInfoPromise;
 
-      // Advance the fake clock by the specified time
-      await vi.advanceTimersByTimeAsync(3000); // 3 seconds, more than retry-after
-
-      const result = await getStarCountPromise;
-
-      expect(result).toBe(777);
+      expect(result).toEqual(mockRepoInfo);
       expect(core.warning).toHaveBeenCalledWith(
         expect.stringContaining(
-          "Request for test-owner/test-repo was throttled (Status: 429)"
+          `Request for ${owner}/${repo} was throttled (Status: 429)`
         )
       );
       expect(mockAxios.history.get.length).toBe(2);
     });
 
     it("should return null after exhausting all retries on persistent rate limit", async () => {
-      // Setup the mock to always fail with a rate limit error
       mockAxios.onGet(apiUrl).reply(
         403,
         { message: "API rate limit exceeded" },
@@ -174,45 +165,37 @@ describe("github.ts", () => {
         }
       );
 
-      const getStarCountPromise = getStarCount(owner, repo, token);
-
-      // Advance timers to simulate waiting and retrying for all 3 attempts
-      await vi.advanceTimersToNextTimerAsync(); // After attempt 1
-      await vi.advanceTimersToNextTimerAsync(); // After attempt 2
-
-      const result = await getStarCountPromise;
+      const getInfoPromise = getRepoInfo(owner, repo, token);
+      await vi.advanceTimersToNextTimerAsync();
+      await vi.advanceTimersToNextTimerAsync();
+      const result = await getInfoPromise;
 
       expect(result).toBeNull();
-      expect(mockAxios.history.get.length).toBe(3); // Should have tried 3 times
+      expect(mockAxios.history.get.length).toBe(3);
       expect(core.error).toHaveBeenCalledWith(
         expect.stringContaining(
-          "Failed to fetch star count for test-owner/test-repo after 3 attempts."
+          `Failed to fetch repo info for ${owner}/${repo} after 3 attempts.`
         )
       );
     });
 
     it("should abort retries if wait time exceeds MAX_WAIT_TIME_SECONDS", async () => {
-      // Mock a response with a retry-after header that exceeds our defined maximum
       mockAxios.onGet(apiUrl).replyOnce(
         429,
         { message: "Throttled for a very long time" },
-        { "retry-after": "301" } // 301 seconds is > MAX_WAIT_TIME_SECONDS (300)
+        { "retry-after": "301" } // > MAX_WAIT_TIME_SECONDS (300)
       );
 
-      const result = await getStarCount(owner, repo, token);
+      const result = await getRepoInfo(owner, repo, token);
 
-      // Assertions
       expect(result).toBeNull();
-      // The API should only be called once because we abort retrying
       expect(mockAxios.history.get.length).toBe(1);
-      // Check that the specific error for exceeding the max wait time was logged
       expect(core.error).toHaveBeenCalledWith(
         expect.stringContaining(`exceeds the maximum wait time of 300s`)
       );
-      // Check that the final summary error is also logged
       expect(core.error).toHaveBeenCalledWith(
         expect.stringContaining(
-          `Failed to fetch star count for test-owner/test-repo after 3 attempts.`
+          `Failed to fetch repo info for ${owner}/${repo} after 3 attempts.`
         )
       );
     });

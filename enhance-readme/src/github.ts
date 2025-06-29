@@ -3,9 +3,17 @@ import axios from "axios";
 
 const GITHUB_API_URL = "https://api.github.com";
 const MAX_RETRIES = 3;
-const MAX_WAIT_TIME_SECONDS = 300;
+const MAX_WAIT_TIME_SECONDS = 300; // 5 minutes
 
-interface RepoInfo {
+export interface RepoInfoDetails {
+  stargazers_count: number;
+  pushed_at: string | null;
+  open_issues_count: number;
+  language: string | null;
+  archived: boolean;
+}
+
+interface RepoIdentifier {
   owner: string;
   repo: string;
 }
@@ -26,9 +34,9 @@ function sleep(ms: number): Promise<void> {
  * - https://github.com/owner/repo.git
  * - https://github.com/owner/repo/issues
  * @param url The GitHub URL.
- * @returns RepoInfo object or null if parsing fails.
+ * @returns RepoIdentifier object or null if parsing fails.
  */
-export function parseGitHubUrl(url: string): RepoInfo | null {
+export function parseGitHubUrl(url: string): RepoIdentifier | null {
   try {
     const parsedUrl = new URL(url);
     if (parsedUrl.hostname !== "github.com") {
@@ -50,38 +58,42 @@ export function parseGitHubUrl(url: string): RepoInfo | null {
 }
 
 /**
- * Fetches star count for a given GitHub repository with robust, compliant retry logic.
+ * Fetches rich repository information with robust, compliant retry logic.
  * @param owner The repository owner.
  * @param repo The repository name.
  * @param token GitHub API token.
- * @returns Star count or null if an error occurs.
+ * @returns A RepoInfoDetails object or null if an error occurs.
  */
-export async function getStarCount(
+export async function getRepoInfo(
   owner: string,
   repo: string,
   token: string
-): Promise<number | null> {
+): Promise<RepoInfoDetails | null> {
   const repoUrl = `${GITHUB_API_URL}/repos/${owner}/${repo}`;
 
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
     try {
       core.debug(
-        `Fetching star count for ${owner}/${repo} (Attempt ${attempt}/${MAX_RETRIES})`
+        `Fetching repository info for ${owner}/${repo} (Attempt ${attempt}/${MAX_RETRIES})`
       );
       const response = await axios.get(repoUrl, {
         headers: {
-          Authorization: `token ${token}`,
+          Authorization: `Bearer ${token}`,
           Accept: "application/vnd.github.v3+json",
           "X-GitHub-Api-Version": "2022-11-28",
         },
       });
 
-      if (
-        response.status === 200 &&
-        response.data &&
-        typeof response.data.stargazers_count === "number"
-      ) {
-        return response.data.stargazers_count;
+      if (response.status === 200 && response.data) {
+        const data = response.data;
+        // Return the structured object with the data we need.
+        return {
+          stargazers_count: data.stargazers_count,
+          pushed_at: data.pushed_at,
+          open_issues_count: data.open_issues_count,
+          language: data.language,
+          archived: data.archived,
+        };
       } else {
         core.warning(
           `Received an unexpected successful response for ${owner}/${repo}. Data: ${JSON.stringify(
@@ -131,27 +143,27 @@ export async function getStarCount(
           }
 
           await sleep(waitTimeSeconds * 1000);
-          continue; // Go to the next attempt.
+          continue;
         }
       }
 
       // If we get here, it's a non-retriable error. Log it and exit immediately.
       if (error.response) {
         core.error(
-          `Failed to fetch star count for ${owner}/${repo}: ${error.message} (Status: ${error.response.status})`
+          `Failed to fetch repo info for ${owner}/${repo}: ${error.message} (Status: ${error.response.status})`
         );
         core.debug(`Response Data: ${JSON.stringify(error.response.data)}`);
       } else {
         core.error(
-          `Network error fetching star count for ${owner}/${repo}: ${error.message}`
+          `Network error fetching repo info for ${owner}/${repo}: ${error.message}`
         );
       }
-      return null; // Exit the function, no more retries.
+      return null;
     }
   }
 
   core.error(
-    `Failed to fetch star count for ${owner}/${repo} after ${MAX_RETRIES} attempts.`
+    `Failed to fetch repo info for ${owner}/${repo} after ${MAX_RETRIES} attempts.`
   );
   return null;
 }
