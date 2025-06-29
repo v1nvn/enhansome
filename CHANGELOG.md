@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.4.0](https://github.com/v1nvn/enhansome/compare/v1.3.2...v1.4.0) (2025-06-29)
+
+
+### Features
+
+* show pushed, issues, lang and archived ([f54bdd0](https://github.com/v1nvn/enhansome/commit/f54bdd0771a9b45fb610cf89ce02c46291d4d052))
+
+
+### Bug Fixes
+
+* cleanup remnants from a previous run ([f52dda3](https://github.com/v1nvn/enhansome/commit/f52dda3bf0532f41f7a55e0a23cdcac05a6dadf1))
+* github api sanity test ([3bf7073](https://github.com/v1nvn/enhansome/commit/3bf70737286c98a75d5122b49e22a914c88b7fb6))
+* handle github rate limit ([87d67e6](https://github.com/v1nvn/enhansome/commit/87d67e675b0dc7e15c05eb2c11795673f5479782))
+
 ## [1.3.2](https://github.com/v1nvn/enhansome/compare/v1.3.1...v1.3.2) (2025-06-28)
 
 

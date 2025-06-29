@@ -1,6 +1,6 @@
 {
   "name": "enhance-readme-stars-action",
-  "version": "1.3.2",
+  "version": "1.4.0",
   "description": "GitHub Action to add star counts to README files.",
   "type": "module",
   "main": "dist/main.js",
