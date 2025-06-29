@@ -199,5 +199,35 @@ describe("github.ts", () => {
         )
       );
     });
+
+    it("should fetch real repository info from GitHub API for a sanity check", async () => {
+      mockAxios.restore();
+
+      const token = process.env.GITHUB_TOKEN || "";
+      if (!token) {
+        core.warning(
+          "Running integration test without a GITHUB_TOKEN. This may be rate-limited."
+        );
+      }
+
+      const owner = "microsoft";
+      const repo = "vscode";
+
+      const result = await getRepoInfo(owner, repo, token); // If the test fails here, it might be due to network issues or rate-limiting.
+
+      expect(result).not.toBeNull();
+      if (!result) {
+        throw new Error("Test failed: getRepoInfo returned null");
+      } // Assert on the structure and types of the data, not exact values
+
+      expect(result.archived).toBe(false);
+      expect(typeof result.stargazers_count).toBe("number");
+      expect(result.stargazers_count).toBeGreaterThan(100000);
+      expect(typeof result.open_issues_count).toBe("number");
+      expect(result.language).toBe("TypeScript");
+      expect(result.pushed_at).toEqual(expect.any(String)); // Check if pushed_at is a valid ISO 8601 date string
+
+      expect(new Date(result.pushed_at!).toString()).not.toBe("Invalid Date");
+    }, 15000); // Increased timeout for a real network request
   });
 });

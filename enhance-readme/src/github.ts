@@ -76,13 +76,17 @@ export async function getRepoInfo(
       core.debug(
         `Fetching repository info for ${owner}/${repo} (Attempt ${attempt}/${MAX_RETRIES})`
       );
-      const response = await axios.get(repoUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/vnd.github.v3+json",
-          "X-GitHub-Api-Version": "2022-11-28",
-        },
-      });
+
+      const headers: Record<string, string> = {
+        Accept: "application/vnd.github.v3+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+      };
+
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+      
+      const response = await axios.get(repoUrl, { headers });
 
       if (response.status === 200 && response.data) {
         const data = response.data;
