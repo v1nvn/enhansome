@@ -81,6 +81,10 @@ runs:
       run: |
         # Create a temporary, known directory for our links
         mkdir -p ./.github/actions
+
+        # Ensure that any remnants from a previous run are cleaned up
+        rm -rf ./.github/actions/enhansome
+
         # Link the root of this action's source code into the user's workspace
         ln -s "${{ github.action_path }}" ./.github/actions/enhansome
         echo "Created symlink to action source at ./.github/actions/enhansome"
