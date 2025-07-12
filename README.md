@@ -1,4 +1,4 @@
-# Enhansome
+# Enhansome (Awesome with stars)
 
 > Enhance + awesome = **Enhansome**
 

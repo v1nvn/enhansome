@@ -1,5 +1,5 @@
-name: 'Awesome List Enhancer (Composite)'
-description: 'Updates submodule, syncs its content, adds GitHub stars, and commits/pushes changes.'
+name: 'Enhansome (Awesome with stars)'
+description: 'Maintain and enhance "awesome lists" or similar repositories that aggregate links. Adds stars, issues, last activity along with find and replace.'
 author: 'v1nvn'
 
 branding:
