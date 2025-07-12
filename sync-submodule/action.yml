@@ -1,7 +1,6 @@
-# awesome-list-toolkit/sync-submodule-content/action.yml
 name: 'Sync Specific Submodule Content'
 description: 'Syncs specified files and directories from a source (submodule) to a destination, preserving relative paths.'
-author: 'Your Name/Organization'
+author: 'v1nvn'
 
 inputs:
   source_path:

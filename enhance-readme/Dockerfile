@@ -1,5 +1,3 @@
-# awesome-list-toolkit/enhance-readme-stars/Dockerfile
-
 # ---- Builder Stage ----
 FROM node:24 AS builder
 

@@ -1,7 +1,6 @@
-# awesome-list-toolkit/update-submodule/action.yml
 name: 'Update Git Submodule'
 description: 'Initializes and updates a Git submodule to the latest commit on its default branch.'
-author: 'Your Name/Organization'
+author: 'v1nvn'
 
 inputs:
   submodule_path:

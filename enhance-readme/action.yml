@@ -1,7 +1,6 @@
-# awesome-list-toolkit/enhance-readme-stars/action.yml
 name: 'Enhance Markdown with GitHub Stars'
 description: 'Parses markdown files, finds GitHub repo links, and appends star counts.'
-author: 'Your Name/Organization'
+author: 'v1nvn'
 
 inputs:
   github_token:
@@ -16,13 +15,9 @@ inputs:
     required: false
     default: '.' # GitHub workspace root
 
-branding:
-  icon: 'star'
-  color: 'yellow'
-
 runs:
   using: 'docker'
-  image: 'Dockerfile' # Points to the Dockerfile in the same directory
+  image: 'Dockerfile'
   env:
     INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
     INPUT_MARKDOWN_FILES: ${{ inputs.markdown_files }}

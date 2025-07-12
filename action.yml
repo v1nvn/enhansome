@@ -1,7 +1,10 @@
-# awesome-list-toolkit/action.yml
 name: 'Awesome List Enhancer (Composite)'
 description: 'Updates submodule, syncs its content, adds GitHub stars, and commits/pushes changes.'
-author: 'Your Name/Organization'
+author: 'v1nvn'
+
+branding:
+  icon: 'star'
+  color: 'yellow'
 
 inputs:
   github_token:

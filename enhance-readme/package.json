@@ -19,7 +19,7 @@
     "stars",
     "readme"
   ],
-  "author": "Your Name/Organization",
+  "author": "v1nvn",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^1.11.1",

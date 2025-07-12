@@ -1,6 +1,5 @@
 #!/bin/sh -l
 
-# awesome-list-toolkit/enhance-readme-stars/entrypoint.sh
 set -e
 
 # GITHUB_WORKSPACE is the default working directory in GitHub Actions
