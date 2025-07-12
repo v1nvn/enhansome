@@ -14,6 +14,17 @@ inputs:
     description: 'The directory where the markdown files are located and where the action should operate.'
     required: false
     default: '.' # GitHub workspace root
+  find_and_replace:
+    description: |
+      Multiline list of literal string replacements.
+      Each line should be in the format: `find_string:::replace_string`.
+    required: false
+  regex_find_and_replace:
+    description: |
+      Multiline list of regex-based replacements.
+      Each line should be in the format: `pattern:::replacement_string`.
+      The pattern is a case-sensitive regex with `gm` flags applied.
+    required: false
 
 runs:
   using: 'docker'
@@ -22,3 +33,5 @@ runs:
     INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
     INPUT_MARKDOWN_FILES: ${{ inputs.markdown_files }}
     INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
+    INPUT_FIND_AND_REPLACE: ${{ inputs.find_and_replace }}
+    INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}

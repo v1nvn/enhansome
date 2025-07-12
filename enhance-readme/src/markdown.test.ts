@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
 import * as github from "./github.js";
-import { processMarkdownFile } from "./markdown.js";
+import { processMarkdownFile, ReplacementRule } from "./markdown.js";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 
 // Mock the modules we depend on
@@ -149,6 +149,77 @@ describe("processMarkdownFile (AST-based)", () => {
     await processMarkdownFile(filePath, token);
 
     expect(mockedGithub.getRepoInfo).not.toHaveBeenCalled();
+    expect(mockedFs.writeFile).not.toHaveBeenCalled();
+  });
+});
+
+
+describe("processMarkdownFile (Find and Replace)", () => {
+  const token = "test-token";
+  const filePath = "CHANGELOG.md";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGithub.parseGitHubUrl.mockReturnValue(null);
+    mockedGithub.getRepoInfo.mockResolvedValue(null);
+  });
+
+  it("should perform a literal find and replace", async () => {
+    const originalContent = "This is version v__VERSION__.";
+    const expectedContent = "This is version v1.2.3.";
+    const rules: ReplacementRule[] = [{ type: 'literal', find: 'v__VERSION__', replace: 'v1.2.3' }];
+
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules);
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+
+  it("should perform a regex find and replace", async () => {
+    const originalContent = "Release date: 2025-01-10\nAnother date: 2024-12-25";
+    const expectedContent = "Release date: TBD\nAnother date: TBD";
+    const rules: ReplacementRule[] = [{ type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' }];
+    
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules);
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+
+  it("should perform multiple rules of both types", async () => {
+    const originalContent = "Status: __STATUS__. Release date: 2025-01-10.";
+    const expectedContent = "Status: Final. Release date: TBD.";
+    const rules: ReplacementRule[] = [
+        { type: 'literal', find: '__STATUS__', replace: 'Final' },
+        { type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' }
+    ];
+
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules);
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+
+  it("should perform replacements AND add a star badge in the correct order", async () => {
+    const originalContent = "Project: [my-project](https://github.com/test-user/test-repo). Status: __STATUS__.";
+    const expectedContent = "Project: [my-project](https://github.com/test-user/test-repo) ⭐ 500 | 🐛 10. Status: Released.";
+    
+    const rules: ReplacementRule[] = [{ type: 'literal', find: '__STATUS__', replace: 'Released' }];
+    mockedFs.readFile.mockResolvedValue(originalContent);
+
+    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => url.includes('github.com') ? { owner: 'test-user', repo: 'test-repo' } : null);
+    mockedGithub.getRepoInfo.mockResolvedValue({
+      stargazers_count: 500, pushed_at: null, open_issues_count: 10, language: null, archived: false,
+    });
+
+    await processMarkdownFile(filePath, token, rules);
+    expect(mockedGithub.getRepoInfo).toHaveBeenCalledWith("test-user", "test-repo", token);
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+
+  it("should not write the file if no changes are made", async () => {
+    const originalContent = "This file has no placeholders and no github links.";
+    const rules: ReplacementRule[] = [{ type: 'literal', find: 'non_existent', replace: 'string' }];
+    
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules);
     expect(mockedFs.writeFile).not.toHaveBeenCalled();
   });
 });

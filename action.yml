@@ -28,16 +28,26 @@ inputs:
       Paths should be relative to the source_path.
       Example: "README.md images/logo.png docs/"
     required: false
-    default: 'README.md' # Default to syncing only README.md
+    default: 'README.md'
   extra_rsync_args:
     description: 'Any extra arguments to pass to rsync for the sync-submodule-content step.'
     required: false
     default: ''
+  find_and_replace:
+    description: |
+      Multiline list of literal string replacements for the enhancement step.
+      Each line should be in the format: `find_string:::replace_string`.
+    required: false
+  regex_find_and_replace:
+    description: |
+      Multiline list of regex-based replacements for the enhancement step.
+      Each line should be in the format: `pattern:::replacement_string`.
+    required: false
   # Commit and Push Inputs
   do_commit:
     description: 'Whether to commit and push changes after enhancement.'
     required: false
-    default: 'true' # Changed from skip_commit_and_push to do_commit for clarity
+    default: 'true'
   commit_message:
     description: 'Commit message for the changes.'
     required: false
@@ -50,10 +60,9 @@ inputs:
     description: 'Email for the commit author.'
     required: false
     default: 'actions-bot@users.noreply.github.com'
-  commit_author: # stefanzweifel/git-auto-commit-action uses this format
+  commit_author:
     description: 'Commit author string. Defaults to "commit_user_name <commit_user_email>".'
     required: false
-    # Default will be constructed in the step if not provided
   commit_branch:
     description: 'Branch to commit to. Defaults to the current branch.'
     required: false
@@ -74,7 +83,7 @@ inputs:
 outputs:
   changes_committed:
     description: "True if changes were committed, false otherwise."
-    value: ${{ steps.commit_changes.outputs.changes_committed }} # Assuming stefanzweifel action provides this
+    value: ${{ steps.commit_changes.outputs.changes_committed }}
 
 runs:
   using: "composite"
@@ -107,13 +116,15 @@ runs:
         items_to_sync: ${{ inputs.items_to_sync }}
         extra_rsync_args: ${{ inputs.extra_rsync_args }}
 
-    - name: Enhance Markdown Files with Star Counts
+    - name: Enhance Markdown Files
       id: enhance_files
       uses: ./.github/actions/enhansome/enhance-readme
       with:
-        github_token: ${{ inputs.github_token }} # GITHUB_TOKEN is used here for API calls
+        github_token: ${{ inputs.github_token }}
         markdown_files: ${{ inputs.files_to_enhance }}
         working_directory: ${{ inputs.content_destination_path }}
+        find_and_replace: ${{ inputs.find_and_replace }}
+        regex_find_and_replace: ${{ inputs.regex_find_and_replace }}
 
     - name: Commit and Push Changes
       id: commit_changes
@@ -128,14 +139,8 @@ runs:
         file_pattern: ${{ inputs.commit_file_pattern }}
         commit_options: ${{ inputs.commit_options }}
         push_options: ${{ inputs.push_options }}
-        # The GITHUB_TOKEN with `contents: write` permission is implicitly used by stefanzweifel/git-auto-commit-action
-        # when running in a workflow that has this permission.
-        # No explicit token input is usually needed for the action itself if the workflow token is sufficient.
-        # However, the action does accept a `token` input if needed for specific scenarios.
-        # We are relying on the overall workflow's GITHUB_TOKEN.
 
     - name: Cleanup action repository link
-      # This is important to ensure the symlink is removed after the action runs
       if: always()
       shell: bash
       run: rm -rf ./.github/actions
