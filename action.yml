@@ -47,6 +47,11 @@ inputs:
     description: "Set to 'true' to disable the default behavior of appending ' with stars' to Awesome list titles."
     required: false
     default: 'false'
+  sort_by:
+    description: "Sorts lists that meet the threshold. Options: 'stars' or 'last_commit'. Leave empty to disable sorting."
+    required: false
+    default: ''
+
 
   # Commit and Push Inputs
   do_commit:
@@ -131,6 +136,8 @@ runs:
         find_and_replace: ${{ inputs.find_and_replace }}
         regex_find_and_replace: ${{ inputs.regex_find_and_replace }}
         disable_branding: ${{ inputs.disable_branding }}
+        sort_by: ${{ inputs.sort_by }}
+
 
     - name: Commit and Push Changes
       id: commit_changes

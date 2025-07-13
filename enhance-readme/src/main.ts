@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { processMarkdownFile, ReplacementRule } from "./markdown.js";
+import { processMarkdownFile, ReplacementRule, SortOptions } from "./markdown.js";
 
 function parseReplacementRules(
   findAndReplaceRaw: string,
@@ -46,6 +46,7 @@ async function run(): Promise<void> {
     const findAndReplaceRaw = core.getInput("find_and_replace");
     const regexFindAndReplaceRaw = core.getInput("regex_find_and_replace");
     const disableBranding = core.getInput("disable_branding") === 'true';
+    const sortBy = core.getInput("sort_by") as 'stars' | 'last_commit' | '';
 
     const filePaths = markdownFilesRaw.split(/\s+/).filter(Boolean);
     if (filePaths.length === 0) {
@@ -53,18 +54,21 @@ async function run(): Promise<void> {
       return;
     }
 
-    // Start with user-defined rules
     const rules = parseReplacementRules(findAndReplaceRaw, regexFindAndReplaceRaw);
 
-    // Prepend the default branding rule unless disabled
     if (!disableBranding) {
       rules.unshift({ type: 'branding' });
       core.debug("Default branding is enabled.");
     }
+    
+    const sortOptions: SortOptions = {
+      by: sortBy,
+      minLinks: 2,
+    };
 
     core.info(`Markdown files to process: ${filePaths.join(", ")}`);
     for (const filePath of filePaths) {
-      await processMarkdownFile(filePath, token, rules);
+      await processMarkdownFile(filePath, token, rules, sortOptions);
     }
 
     core.info("Process finished.");

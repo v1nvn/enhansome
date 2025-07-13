@@ -1,7 +1,8 @@
 import * as fs from "fs/promises";
 import * as github from "./github.js";
-import { processMarkdownFile, ReplacementRule } from "./markdown.js";
+import { processMarkdownFile, ReplacementRule, SortOptions } from "./markdown.js";
 import { vi, describe, it, expect, beforeEach } from "vitest";
+import { RepoInfoDetails } from "./github.js";
 
 // Mock the modules we depend on
 vi.mock("fs/promises", () => ({
@@ -278,5 +279,187 @@ describe("Branding and Default Replacements", () => {
     await processMarkdownFile(filePath, token, customRules);
 
     expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+});
+
+
+describe("Sorting", () => {
+  const token = "test-token";
+  const filePath = "test.md";
+  const rules: ReplacementRule[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock the GitHub API calls for all sorting tests
+    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => ({ owner: 'user', repo: url.split('/')[4] }));
+    mockedGithub.getRepoInfo.mockImplementation(async (owner: string, repo: string) => {
+      const repoData: { [key: string]: RepoInfoDetails } = {
+        'repo-a': { stargazers_count: 200, pushed_at: '2025-01-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
+        'repo-b': { stargazers_count: 100, pushed_at: '2025-02-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
+        'repo-c': { stargazers_count: 300, pushed_at: '2025-03-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
+        'inner-a': { stargazers_count: 900, pushed_at: '2025-04-01T00:00:00Z', open_issues_count: 1, language: 'JS', archived: false },
+        'inner-b': { stargazers_count: 500, pushed_at: '2025-05-01T00:00:00Z', open_issues_count: 1, language: 'JS', archived: false },
+      };
+      return repoData[repo] || null;
+    });
+  });
+
+  it("should sort a list by stars", async () => {
+    const originalContent = `
+* [Project B](https://github.com/user/repo-b) - 100 stars
+* [Project C](https://github.com/user/repo-c) - 300 stars
+* [Project A](https://github.com/user/repo-a) - 200 stars
+    `;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
+    
+    const writtenContent = mockedFs.writeFile.mock.calls[0][1];
+    expect(writtenContent.indexOf('repo-c')).toBeLessThan(writtenContent.indexOf('repo-a'));
+    expect(writtenContent.indexOf('repo-a')).toBeLessThan(writtenContent.indexOf('repo-b'));
+  });
+
+  it("should sort a list by last commit date", async () => {
+    const originalContent = `
+* [Project A](https://github.com/user/repo-a) - Jan 1
+* [Project C](https://github.com/user/repo-c) - Mar 1
+* [Project B](https://github.com/user/repo-b) - Feb 1
+    `;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules, { by: 'last_commit', minLinks: 2 });
+
+    const writtenContent = mockedFs.writeFile.mock.calls[0][1];
+    expect(writtenContent.indexOf('repo-c')).toBeLessThan(writtenContent.indexOf('repo-b'));
+    expect(writtenContent.indexOf('repo-b')).toBeLessThan(writtenContent.indexOf('repo-a'));
+  });
+
+  it("should correctly sort nested lists recursively by stars", async () => {
+    const originalContent = `
+* [Outer C](https://github.com/user/repo-c) - 300 stars
+* [Outer A](https://github.com/user/repo-a) - 200 stars
+  * [Inner B](https://github.com/user/inner-b) - 500 stars
+  * [Inner A](https://github.com/user/inner-a) - 900 stars
+* [Outer B](https://github.com/user/repo-b) - 100 stars
+    `;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
+
+    const writtenContent = mockedFs.writeFile.mock.calls[0][1];
+
+    // 1. Check that the inner list was sorted correctly (900 stars > 500 stars)
+    expect(writtenContent.indexOf('inner-a')).toBeLessThan(writtenContent.indexOf('inner-b'));
+    
+    // 2. Check that the outer list was sorted correctly (300 > 200 > 100)
+    expect(writtenContent.indexOf('Outer C')).toBeLessThan(writtenContent.indexOf('Outer A'));
+    expect(writtenContent.indexOf('Outer A')).toBeLessThan(writtenContent.indexOf('Outer B'));
+
+    // 3. Check that the sorted inner list is still properly nested within its original parent item
+    const outerA_Index = writtenContent.indexOf('Outer A');
+    const innerA_Index = writtenContent.indexOf('inner-a');
+    const outerB_Index = writtenContent.indexOf('Outer B');
+    expect(innerA_Index).toBeGreaterThan(outerA_Index);
+    expect(innerA_Index).toBeLessThan(outerB_Index);
+  });
+
+  it("should not sort a list if it does not meet the minLinks threshold", async () => {
+    const originalContent = `
+* [Project A](https://github.com/user/repo-a)
+* Just a normal list item
+* And another one
+    `;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    
+    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
+
+    const writtenContent = mockedFs.writeFile.mock.calls[0]?.[1] ?? originalContent;
+    // Expect the original order to be preserved since no sorting occurred
+    expect(writtenContent.indexOf('repo-a')).toBeLessThan(writtenContent.indexOf('normal list item'));
+  });
+});
+
+describe("Comprehensive End-to-End Test", () => {
+  const token = "test-token";
+  const filePath = "COMPLEX_README.md";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("should handle a complex document with branding, replacements, nested sorting, and badges", async () => {
+    // 1. Define the complex initial state of the Markdown file
+    const originalContent = `
+# Awesome Test List
+
+Version: __VERSION__ | Last Updated: 2025-01-01
+
+This is a test list.
+
+* [Repo C](https://github.com/user/repo-c) - A new project.
+* [Repo A](https://github.com/user/repo-a) - An older, popular project.
+  * [Inner B](https://github.com/user/inner-b) - A JS utility.
+  * [Inner A](https://github.com/user/inner-a) - Another JS utility.
+* [Archived Repo](https://github.com/user/archived) - This project is no longer maintained.
+* \`[Ignored Link](https://github.com/user/ignored)\`
+
+### A List That Should Not Be Sorted
+
+* [Single Repo](https://github.com/user/single)
+* An item without a link.
+`;
+
+    // 2. Define the expected final state with corrected badge positions and sorting
+    const expectedContent = `# Awesome Test List with stars
+
+Version: 1.5.0 | Last Updated: TBD
+
+This is a test list.
+
+* [Repo A](https://github.com/user/repo-a) ⭐ 1,000 | 🐛 10 | 🌐 Go | 📅 2024-05-10 - An older, popular project.
+  * [Inner A](https://github.com/user/inner-a) ⭐ 500 | 🐛 5 | 🌐 JavaScript | 📅 2025-07-13 - Another JS utility.
+  * [Inner B](https://github.com/user/inner-b) ⭐ 250 | 🐛 2 | 🌐 JavaScript | 📅 2025-06-01 - A JS utility.
+* [Archived Repo](https://github.com/user/archived) ⚠️ Archived - This project is no longer maintained.
+* [Repo C](https://github.com/user/repo-c) ⭐ 50 | 🐛 1 | 🌐 Rust | 📅 2025-07-12 - A new project.
+* \`[Ignored Link](https://github.com/user/ignored)\`
+
+### A List That Should Not Be Sorted
+
+* [Single Repo](https://github.com/user/single) ⭐ 10 | 🐛 0 | 🌐 Python | 📅 2023-01-01
+* An item without a link.
+`;
+
+    // 3. Set up mocks for the GitHub API
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => {
+      if (url.includes('github.com')) {
+        return { owner: 'user', repo: url.split('/')[4] };
+      }
+      return null;
+    });
+    mockedGithub.getRepoInfo.mockImplementation(async (owner: string, repo: string): Promise<RepoInfoDetails | null> => {
+      const db: { [key: string]: RepoInfoDetails } = {
+        'repo-a': { stargazers_count: 1000, pushed_at: '2024-05-10T12:00:00Z', open_issues_count: 10, language: 'Go', archived: false },
+        'repo-c': { stargazers_count: 50, pushed_at: '2025-07-12T12:00:00Z', open_issues_count: 1, language: 'Rust', archived: false },
+        'inner-a': { stargazers_count: 500, pushed_at: '2025-07-13T12:00:00Z', open_issues_count: 5, language: 'JavaScript', archived: false },
+        'inner-b': { stargazers_count: 250, pushed_at: '2025-06-01T12:00:00Z', open_issues_count: 2, language: 'JavaScript', archived: false },
+        'archived': { stargazers_count: 99, pushed_at: '2022-01-01T12:00:00Z', open_issues_count: 0, language: 'C++', archived: true },
+        'single': { stargazers_count: 10, pushed_at: '2023-01-01T12:00:00Z', open_issues_count: 0, language: 'Python', archived: false },
+      };
+      return db[repo] || null;
+    });
+
+    // 4. Define the rules and options for the run
+    const rules: ReplacementRule[] = [
+      { type: 'branding' },
+      { type: 'literal', find: '__VERSION__', replace: '1.5.0' },
+      { type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' },
+    ];
+    const sortOptions: SortOptions = { by: 'stars', minLinks: 2 };
+
+    // 5. Execute the process
+    await processMarkdownFile(filePath, token, rules, sortOptions);
+
+    // 6. Assert the final output
+    expect(mockedFs.writeFile).toHaveBeenCalledTimes(1);
+    const writtenContent = mockedFs.writeFile.mock.calls[0][1].trim();
+    expect(writtenContent).toEqual(expectedContent.trim());
   });
 });
