@@ -1,6 +1,11 @@
 import * as fs from "fs/promises";
 import * as github from "./github.js";
-import { processMarkdownFile, ReplacementRule, SortOptions } from "./markdown.js";
+import {
+  fetchAllRepoInfo,
+  processMarkdownFile,
+  ReplacementRule,
+  SortOptions,
+} from "./markdown.js";
 import { vi, describe, it, expect, beforeEach } from "vitest";
 import { RepoInfoDetails } from "./github.js";
 
@@ -121,7 +126,6 @@ describe("processMarkdownFile (AST-based)", () => {
   });
 });
 
-
 describe("processMarkdownFile (Find and Replace)", () => {
   const token = "test-token";
   const filePath = "CHANGELOG.md";
@@ -135,57 +139,97 @@ describe("processMarkdownFile (Find and Replace)", () => {
   it("should perform a literal find and replace", async () => {
     const originalContent = "This is version v__VERSION__.";
     const expectedContent = "This is version v1.2.3.";
-    const rules: ReplacementRule[] = [{ type: 'literal', find: 'v__VERSION__', replace: 'v1.2.3' }];
+    const rules: ReplacementRule[] = [
+      { type: "literal", find: "v__VERSION__", replace: "v1.2.3" },
+    ];
 
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should perform a regex find and replace", async () => {
-    const originalContent = "Release date: 2025-01-10\nAnother date: 2024-12-25";
+    const originalContent =
+      "Release date: 2025-01-10\nAnother date: 2024-12-25";
     const expectedContent = "Release date: TBD\nAnother date: TBD";
-    const rules: ReplacementRule[] = [{ type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' }];
-    
+    const rules: ReplacementRule[] = [
+      { type: "regex", find: "\\d{4}-\\d{2}-\\d{2}", replace: "TBD" },
+    ];
+
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should perform multiple rules of both types", async () => {
     const originalContent = "Status: __STATUS__. Release date: 2025-01-10.";
     const expectedContent = "Status: Final. Release date: TBD.";
     const rules: ReplacementRule[] = [
-        { type: 'literal', find: '__STATUS__', replace: 'Final' },
-        { type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' }
+      { type: "literal", find: "__STATUS__", replace: "Final" },
+      { type: "regex", find: "\\d{4}-\\d{2}-\\d{2}", replace: "TBD" },
     ];
 
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should perform replacements AND add a star badge in the correct order", async () => {
-    const originalContent = "Project: [my-project](https://github.com/test-user/test-repo). Status: __STATUS__.";
-    const expectedContent = "Project: [my-project](https://github.com/test-user/test-repo) ⭐ 500 | 🐛 10. Status: Released.";
-    
-    const rules: ReplacementRule[] = [{ type: 'literal', find: '__STATUS__', replace: 'Released' }];
+    const originalContent =
+      "Project: [my-project](https://github.com/test-user/test-repo). Status: __STATUS__.";
+    const expectedContent =
+      "Project: [my-project](https://github.com/test-user/test-repo) ⭐ 500 | 🐛 10. Status: Released.";
+
+    const rules: ReplacementRule[] = [
+      { type: "literal", find: "__STATUS__", replace: "Released" },
+    ];
     mockedFs.readFile.mockResolvedValue(originalContent);
 
-    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => url.includes('github.com') ? { owner: 'test-user', repo: 'test-repo' } : null);
+    mockedGithub.parseGitHubUrl.mockImplementation((url: string) =>
+      url.includes("github.com")
+        ? { owner: "test-user", repo: "test-repo" }
+        : null
+    );
     mockedGithub.getRepoInfo.mockResolvedValue({
-      stargazers_count: 500, pushed_at: null, open_issues_count: 10, language: null, archived: false,
+      stargazers_count: 500,
+      pushed_at: null,
+      open_issues_count: 10,
+      language: null,
+      archived: false,
     });
 
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedGithub.getRepoInfo).toHaveBeenCalledWith("test-user", "test-repo", token);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedGithub.getRepoInfo).toHaveBeenCalledWith(
+      "test-user",
+      "test-repo",
+      token
+    );
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should not write the file if no changes are made", async () => {
-    const originalContent = "This file has no placeholders and no github links.";
-    const rules: ReplacementRule[] = [{ type: 'literal', find: 'non_existent', replace: 'string' }];
-    
+    const originalContent =
+      "This file has no placeholders and no github links.";
+    const rules: ReplacementRule[] = [
+      { type: "literal", find: "non_existent", replace: "string" },
+    ];
+
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
     expect(mockedFs.writeFile).not.toHaveBeenCalled();
@@ -204,51 +248,66 @@ describe("Branding and Default Replacements", () => {
 
   it("should apply branding rule for space-based titles", async () => {
     const originalContent = "# Awesome Go\n\nA list of awesome Go frameworks.";
-    const expectedContent = "# Awesome Go with stars\n\nA list of awesome Go frameworks.";
-    const rules: ReplacementRule[] = [{ type: 'branding' }];
-    
+    const expectedContent =
+      "# Awesome Go with stars\n\nA list of awesome Go frameworks.";
+    const rules: ReplacementRule[] = [{ type: "branding" }];
+
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should apply branding rule for hyphen-based titles", async () => {
-    const originalContent = "# Awesome-Selfhosted\n\nA list of awesome selfhosted software.";
-    const expectedContent = "# Awesome-Selfhosted with stars\n\nA list of awesome selfhosted software.";
-    const rules: ReplacementRule[] = [{ type: 'branding' }];
-    
+    const originalContent =
+      "# Awesome-Selfhosted\n\nA list of awesome selfhosted software.";
+    const expectedContent =
+      "# Awesome-Selfhosted with stars\n\nA list of awesome selfhosted software.";
+    const rules: ReplacementRule[] = [{ type: "branding" }];
+
     mockedFs.readFile.mockResolvedValue(originalContent);
     await processMarkdownFile(filePath, token, rules);
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 
   it("should NOT apply branding if the rule is not in the rule set", async () => {
     const originalContent = "# Awesome Go\n\nThis title should not change.";
     const rules: ReplacementRule[] = []; // Empty rule set
-    
+
     mockedFs.readFile.mockResolvedValue(originalContent);
-    
+
     await processMarkdownFile(filePath, token, rules);
 
     expect(mockedFs.writeFile).not.toHaveBeenCalled();
   });
 
   it("should still apply user-defined rules when the branding rule is absent", async () => {
-    const originalContent = "# Awesome Go\n\nMy custom placeholder: __PLACEHOLDER__";
+    const originalContent =
+      "# Awesome Go\n\nMy custom placeholder: __PLACEHOLDER__";
     const expectedContent = "# Awesome Go\n\nMy custom placeholder: Replaced!";
-    
+
     const customRules: ReplacementRule[] = [
-      { type: 'literal', find: '__PLACEHOLDER__', replace: 'Replaced!' }
+      { type: "literal", find: "__PLACEHOLDER__", replace: "Replaced!" },
     ];
 
     mockedFs.readFile.mockResolvedValue(originalContent);
-    
+
     await processMarkdownFile(filePath, token, customRules);
 
-    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(
+      filePath,
+      expectedContent,
+      "utf-8"
+    );
   });
 });
-
 
 describe("Sorting", () => {
   const token = "test-token";
@@ -258,17 +317,52 @@ describe("Sorting", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Mock the GitHub API calls for all sorting tests
-    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => ({ owner: 'user', repo: url.split('/')[4] }));
-    mockedGithub.getRepoInfo.mockImplementation(async (owner: string, repo: string) => {
-      const repoData: { [key: string]: RepoInfoDetails } = {
-        'repo-a': { stargazers_count: 200, pushed_at: '2025-01-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
-        'repo-b': { stargazers_count: 100, pushed_at: '2025-02-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
-        'repo-c': { stargazers_count: 300, pushed_at: '2025-03-01T00:00:00Z', open_issues_count: 1, language: 'Go', archived: false },
-        'inner-a': { stargazers_count: 900, pushed_at: '2025-04-01T00:00:00Z', open_issues_count: 1, language: 'JS', archived: false },
-        'inner-b': { stargazers_count: 500, pushed_at: '2025-05-01T00:00:00Z', open_issues_count: 1, language: 'JS', archived: false },
-      };
-      return repoData[repo] || null;
-    });
+    mockedGithub.parseGitHubUrl.mockImplementation((url: string) => ({
+      owner: "user",
+      repo: url.split("/")[4],
+    }));
+    mockedGithub.getRepoInfo.mockImplementation(
+      async (owner: string, repo: string) => {
+        const repoData: { [key: string]: RepoInfoDetails } = {
+          "repo-a": {
+            stargazers_count: 200,
+            pushed_at: "2025-01-01T00:00:00Z",
+            open_issues_count: 1,
+            language: "Go",
+            archived: false,
+          },
+          "repo-b": {
+            stargazers_count: 100,
+            pushed_at: "2025-02-01T00:00:00Z",
+            open_issues_count: 1,
+            language: "Go",
+            archived: false,
+          },
+          "repo-c": {
+            stargazers_count: 300,
+            pushed_at: "2025-03-01T00:00:00Z",
+            open_issues_count: 1,
+            language: "Go",
+            archived: false,
+          },
+          "inner-a": {
+            stargazers_count: 900,
+            pushed_at: "2025-04-01T00:00:00Z",
+            open_issues_count: 1,
+            language: "JS",
+            archived: false,
+          },
+          "inner-b": {
+            stargazers_count: 500,
+            pushed_at: "2025-05-01T00:00:00Z",
+            open_issues_count: 1,
+            language: "JS",
+            archived: false,
+          },
+        };
+        return repoData[repo] || null;
+      }
+    );
   });
 
   it("should sort a list by stars", async () => {
@@ -278,11 +372,18 @@ describe("Sorting", () => {
 * [Project A](https://github.com/user/repo-a) - 200 stars
     `;
     mockedFs.readFile.mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
-    
+    await processMarkdownFile(filePath, token, rules, {
+      by: "stars",
+      minLinks: 2,
+    });
+
     const writtenContent = mockedFs.writeFile.mock.calls[0][1];
-    expect(writtenContent.indexOf('repo-c')).toBeLessThan(writtenContent.indexOf('repo-a'));
-    expect(writtenContent.indexOf('repo-a')).toBeLessThan(writtenContent.indexOf('repo-b'));
+    expect(writtenContent.indexOf("repo-c")).toBeLessThan(
+      writtenContent.indexOf("repo-a")
+    );
+    expect(writtenContent.indexOf("repo-a")).toBeLessThan(
+      writtenContent.indexOf("repo-b")
+    );
   });
 
   it("should sort a list by last commit date", async () => {
@@ -292,11 +393,18 @@ describe("Sorting", () => {
 * [Project B](https://github.com/user/repo-b) - Feb 1
     `;
     mockedFs.readFile.mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, { by: 'last_commit', minLinks: 2 });
+    await processMarkdownFile(filePath, token, rules, {
+      by: "last_commit",
+      minLinks: 2,
+    });
 
     const writtenContent = mockedFs.writeFile.mock.calls[0][1];
-    expect(writtenContent.indexOf('repo-c')).toBeLessThan(writtenContent.indexOf('repo-b'));
-    expect(writtenContent.indexOf('repo-b')).toBeLessThan(writtenContent.indexOf('repo-a'));
+    expect(writtenContent.indexOf("repo-c")).toBeLessThan(
+      writtenContent.indexOf("repo-b")
+    );
+    expect(writtenContent.indexOf("repo-b")).toBeLessThan(
+      writtenContent.indexOf("repo-a")
+    );
   });
 
   it("should correctly sort nested lists recursively by stars", async () => {
@@ -308,21 +416,30 @@ describe("Sorting", () => {
 * [Outer B](https://github.com/user/repo-b) - 100 stars
     `;
     mockedFs.readFile.mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
+    await processMarkdownFile(filePath, token, rules, {
+      by: "stars",
+      minLinks: 2,
+    });
 
     const writtenContent = mockedFs.writeFile.mock.calls[0][1];
 
     // 1. Check that the inner list was sorted correctly (900 stars > 500 stars)
-    expect(writtenContent.indexOf('inner-a')).toBeLessThan(writtenContent.indexOf('inner-b'));
-    
+    expect(writtenContent.indexOf("inner-a")).toBeLessThan(
+      writtenContent.indexOf("inner-b")
+    );
+
     // 2. Check that the outer list was sorted correctly (300 > 200 > 100)
-    expect(writtenContent.indexOf('Outer C')).toBeLessThan(writtenContent.indexOf('Outer A'));
-    expect(writtenContent.indexOf('Outer A')).toBeLessThan(writtenContent.indexOf('Outer B'));
+    expect(writtenContent.indexOf("Outer C")).toBeLessThan(
+      writtenContent.indexOf("Outer A")
+    );
+    expect(writtenContent.indexOf("Outer A")).toBeLessThan(
+      writtenContent.indexOf("Outer B")
+    );
 
     // 3. Check that the sorted inner list is still properly nested within its original parent item
-    const outerA_Index = writtenContent.indexOf('Outer A');
-    const innerA_Index = writtenContent.indexOf('inner-a');
-    const outerB_Index = writtenContent.indexOf('Outer B');
+    const outerA_Index = writtenContent.indexOf("Outer A");
+    const innerA_Index = writtenContent.indexOf("inner-a");
+    const outerB_Index = writtenContent.indexOf("Outer B");
     expect(innerA_Index).toBeGreaterThan(outerA_Index);
     expect(innerA_Index).toBeLessThan(outerB_Index);
   });
@@ -334,12 +451,18 @@ describe("Sorting", () => {
 * And another one
     `;
     mockedFs.readFile.mockResolvedValue(originalContent);
-    
-    await processMarkdownFile(filePath, token, rules, { by: 'stars', minLinks: 2 });
 
-    const writtenContent = mockedFs.writeFile.mock.calls[0]?.[1] ?? originalContent;
+    await processMarkdownFile(filePath, token, rules, {
+      by: "stars",
+      minLinks: 2,
+    });
+
+    const writtenContent =
+      mockedFs.writeFile.mock.calls[0]?.[1] ?? originalContent;
     // Expect the original order to be preserved since no sorting occurred
-    expect(writtenContent.indexOf('repo-a')).toBeLessThan(writtenContent.indexOf('normal list item'));
+    expect(writtenContent.indexOf("repo-a")).toBeLessThan(
+      writtenContent.indexOf("normal list item")
+    );
   });
 });
 
@@ -396,30 +519,68 @@ This is a test list.
     // 3. Set up mocks for the GitHub API
     mockedFs.readFile.mockResolvedValue(originalContent);
     mockedGithub.parseGitHubUrl.mockImplementation((url: string) => {
-      if (url.includes('github.com')) {
-        return { owner: 'user', repo: url.split('/')[4] };
+      if (url.includes("github.com")) {
+        return { owner: "user", repo: url.split("/")[4] };
       }
       return null;
     });
-    mockedGithub.getRepoInfo.mockImplementation(async (owner: string, repo: string): Promise<RepoInfoDetails | null> => {
-      const db: { [key: string]: RepoInfoDetails } = {
-        'repo-a': { stargazers_count: 1000, pushed_at: '2024-05-10T12:00:00Z', open_issues_count: 10, language: 'Go', archived: false },
-        'repo-c': { stargazers_count: 50, pushed_at: '2025-07-12T12:00:00Z', open_issues_count: 1, language: 'Rust', archived: false },
-        'inner-a': { stargazers_count: 500, pushed_at: '2025-07-13T12:00:00Z', open_issues_count: 5, language: 'JavaScript', archived: false },
-        'inner-b': { stargazers_count: 250, pushed_at: '2025-06-01T12:00:00Z', open_issues_count: 2, language: 'JavaScript', archived: false },
-        'archived': { stargazers_count: 99, pushed_at: '2022-01-01T12:00:00Z', open_issues_count: 0, language: 'C++', archived: true },
-        'single': { stargazers_count: 10, pushed_at: '2023-01-01T12:00:00Z', open_issues_count: 0, language: 'Python', archived: false },
-      };
-      return db[repo] || null;
-    });
+    mockedGithub.getRepoInfo.mockImplementation(
+      async (owner: string, repo: string): Promise<RepoInfoDetails | null> => {
+        const db: { [key: string]: RepoInfoDetails } = {
+          "repo-a": {
+            stargazers_count: 1000,
+            pushed_at: "2024-05-10T12:00:00Z",
+            open_issues_count: 10,
+            language: "Go",
+            archived: false,
+          },
+          "repo-c": {
+            stargazers_count: 50,
+            pushed_at: "2025-07-12T12:00:00Z",
+            open_issues_count: 1,
+            language: "Rust",
+            archived: false,
+          },
+          "inner-a": {
+            stargazers_count: 500,
+            pushed_at: "2025-07-13T12:00:00Z",
+            open_issues_count: 5,
+            language: "JavaScript",
+            archived: false,
+          },
+          "inner-b": {
+            stargazers_count: 250,
+            pushed_at: "2025-06-01T12:00:00Z",
+            open_issues_count: 2,
+            language: "JavaScript",
+            archived: false,
+          },
+          archived: {
+            stargazers_count: 99,
+            pushed_at: "2022-01-01T12:00:00Z",
+            open_issues_count: 0,
+            language: "C++",
+            archived: true,
+          },
+          single: {
+            stargazers_count: 10,
+            pushed_at: "2023-01-01T12:00:00Z",
+            open_issues_count: 0,
+            language: "Python",
+            archived: false,
+          },
+        };
+        return db[repo] || null;
+      }
+    );
 
     // 4. Define the rules and options for the run
     const rules: ReplacementRule[] = [
-      { type: 'branding' },
-      { type: 'literal', find: '__VERSION__', replace: '1.5.0' },
-      { type: 'regex', find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD' },
+      { type: "branding" },
+      { type: "literal", find: "__VERSION__", replace: "1.5.0" },
+      { type: "regex", find: "\\d{4}-\\d{2}-\\d{2}", replace: "TBD" },
     ];
-    const sortOptions: SortOptions = { by: 'stars', minLinks: 2 };
+    const sortOptions: SortOptions = { by: "stars", minLinks: 2 };
 
     // 5. Execute the process
     await processMarkdownFile(filePath, token, rules, sortOptions);
@@ -428,5 +589,118 @@ This is a test list.
     expect(mockedFs.writeFile).toHaveBeenCalledTimes(1);
     const writtenContent = mockedFs.writeFile.mock.calls[0][1].trim();
     expect(writtenContent).toEqual(expectedContent.trim());
+  });
+});
+
+describe("fetchAllRepoInfo with Concurrency", () => {
+  const token = "test-token";
+  const mockRepoData: github.RepoInfoDetails = {
+    stargazers_count: 100,
+    pushed_at: "2025-01-01T00:00:00Z",
+    open_issues_count: 5,
+    language: "TypeScript",
+    archived: false,
+  };
+
+  beforeEach(() => {
+    // Reset mocks before each test
+    vi.clearAllMocks();
+  });
+
+  it("should respect the concurrency limit when fetching many URLs", async () => {
+    const CONCURRENCY_LIMIT = 10; // This must match the value in fetchAllRepoInfo
+    const totalUrls = 25;
+    const urls = new Set(
+      Array.from(
+        { length: totalUrls },
+        (_, i) => `https://github.com/user/repo-${i}`
+      )
+    );
+
+    let activeRequests = 0;
+    let maxConcurrentRequests = 0;
+
+    // Mock getRepoInfo with a delay to simulate real network calls
+    mockedGithub.getRepoInfo.mockImplementation(async () => {
+      activeRequests++;
+      maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
+      await new Promise((resolve) => setTimeout(resolve, 50)); // 50ms delay
+      activeRequests--;
+      return { ...mockRepoData };
+    });
+
+    const result = await fetchAllRepoInfo(urls, token);
+
+    // 1. All URLs should have been processed successfully
+    expect(result.size).toBe(totalUrls);
+    expect(mockedGithub.getRepoInfo).toHaveBeenCalledTimes(totalUrls);
+
+    // 2. The number of concurrent requests should never exceed the limit
+    expect(maxConcurrentRequests).toBe(CONCURRENCY_LIMIT);
+
+    // 3. All requests should be finished by the end
+    expect(activeRequests).toBe(0);
+  }, 1000); // Increase timeout for this time-based test
+
+  it("should use a concurrency level equal to the URL count if it is less than the limit", async () => {
+    const totalUrls = 4;
+    const urls = new Set(
+      Array.from(
+        { length: totalUrls },
+        (_, i) => `https://github.com/user/repo-${i}`
+      )
+    );
+
+    let activeRequests = 0;
+    let maxConcurrentRequests = 0;
+
+    mockedGithub.getRepoInfo.mockImplementation(async () => {
+      activeRequests++;
+      maxConcurrentRequests = Math.max(maxConcurrentRequests, activeRequests);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      activeRequests--;
+      return { ...mockRepoData };
+    });
+
+    const result = await fetchAllRepoInfo(urls, token);
+
+    expect(result.size).toBe(totalUrls);
+    // Max concurrency should be the number of URLs, not the hard limit of 10
+    expect(maxConcurrentRequests).toBe(totalUrls);
+  });
+
+  it("should continue processing the queue even if some fetches fail", async () => {
+    const urls = new Set([
+      "https://github.com/user/success-1",
+      "https://github.com/user/fail-1",
+      "https://github.com/user/success-2",
+      "https://github.com/user/fail-2",
+      "https://github.com/user/success-3",
+    ]);
+
+    mockedGithub.getRepoInfo.mockImplementation(
+      async (owner: string, repo: string) => {
+        if (repo.startsWith("fail")) {
+          throw new Error(`API failed for ${repo}`);
+        }
+        return { ...mockRepoData, language: repo };
+      }
+    );
+
+    const result = await fetchAllRepoInfo(urls, token);
+
+    // It should attempt to fetch all URLs
+    expect(mockedGithub.getRepoInfo).toHaveBeenCalledTimes(5);
+
+    // The final map should only contain the successful results
+    expect(result.size).toBe(3);
+    expect(result.has("https://github.com/user/success-1")).toBe(true);
+    expect(result.has("https://github.com/user/fail-1")).toBe(false);
+  });
+
+  it("should handle an empty set of URLs gracefully", async () => {
+    const result = await fetchAllRepoInfo(new Set<string>(), token);
+    expect(result.size).toBe(0);
+    expect(mockedGithub.getRepoInfo).not.toHaveBeenCalled();
   });
 });

@@ -106,23 +106,43 @@ function collectGitHubLinks(tree: Root): Set<string> {
   return urls;
 }
 
-async function fetchAllRepoInfo(
+export async function fetchAllRepoInfo(
   urls: Set<string>,
   token: string
 ): Promise<Map<string, RepoInfoDetails>> {
   const repoInfoMap = new Map<string, RepoInfoDetails>();
-  const promises = Array.from(urls).map(async (url) => {
-    const details = parseGitHubUrl(url);
-    if (details) {
-      const info = await getRepoInfo(details.owner, details.repo, token);
-      if (info) {
-        repoInfoMap.set(url, info);
+  const queue = Array.from(urls);
+  const CONCURRENCY_LIMIT = 10; // Process up to 10 requests in parallel
+
+  // A worker pulls a URL from the queue, processes it, and repeats
+  // until the queue is empty.
+  const worker = async () => {
+    while (queue.length > 0) {
+      const url = queue.shift();
+      if (!url) continue;
+
+      const details = parseGitHubUrl(url);
+      if (details) {
+        try {
+          const info = await getRepoInfo(details.owner, details.repo, token);
+          if (info) {
+            repoInfoMap.set(url, info);
+          }
+        } catch (error) {
+          // Log errors but don't stop the other workers
+          core.error(`Failed to process URL ${url}: ${error}`);
+        }
       }
     }
-  });
+  };
 
-  await Promise.all(promises);
-  core.debug(`Fetched info for ${repoInfoMap.size} repositories.`);
+  // Create and start the pool of workers.
+  const workers = Array(CONCURRENCY_LIMIT).fill(null).map(worker);
+  await Promise.all(workers);
+
+  core.debug(
+    `Fetched info for ${repoInfoMap.size} repositories using a concurrency of ${CONCURRENCY_LIMIT}.`
+  );
   return repoInfoMap;
 }
 
