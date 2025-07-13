@@ -25,6 +25,11 @@ inputs:
       Each line should be in the format: `pattern:::replacement_string`.
       The pattern is a case-sensitive regex with `gm` flags applied.
     required: false
+  disable_branding:
+    description: "Set to 'true' to disable the default behavior of appending ' with stars' to Awesome list titles."
+    required: false
+    default: 'false'
+
 
 runs:
   using: 'docker'
@@ -35,3 +40,4 @@ runs:
     INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
     INPUT_FIND_AND_REPLACE: ${{ inputs.find_and_replace }}
     INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}
+    INPUT_DISABLE_BRANDING: ${{ inputs.disable_branding }}

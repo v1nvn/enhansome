@@ -9,11 +9,13 @@ import type { Root, Link } from "mdast";
 import { getRepoInfo, parseGitHubUrl, RepoInfoDetails } from "./github.js";
 
 // Common interface for all replacement operations
-export interface ReplacementRule {
-  type: "literal" | "regex";
-  find: string;
-  replace: string;
-}
+export type ReplacementRule =
+  | {
+      type: "literal" | "regex";
+      find: string;
+      replace: string;
+    }
+  | { type: "branding" };
 
 /**
  * Formats an ISO date string into YYYY-MM-DD format.
@@ -42,33 +44,40 @@ function formatRepoInfo(info: RepoInfoDetails): string {
   return ` ${parts.join(" | ")}`;
 }
 
-/**
- * Applies a list of replacement rules to a string content.
- */
 function applyReplacements(content: string, rules: ReplacementRule[]): string {
   let processedContent = content;
 
   for (const rule of rules) {
     if (rule.type === "literal") {
-      core.debug(`Applying literal replacement: '${rule.find}' -> '${rule.replace}'`);
+      core.debug(
+        `Applying literal replacement: '${rule.find}' -> '${rule.replace}'`
+      );
       processedContent = processedContent.replaceAll(rule.find, rule.replace);
     } else if (rule.type === "regex") {
       try {
         const regex = new RegExp(rule.find, "gm");
-        core.debug(`Applying regex replacement: /${rule.find}/gm -> '${rule.replace}'`);
+        core.debug(
+          `Applying regex replacement: /${rule.find}/gm -> '${rule.replace}'`
+        );
         processedContent = processedContent.replace(regex, rule.replace);
       } catch (e: any) {
-        core.warning(`Skipping invalid regex pattern '${rule.find}': ${e.message}`);
+        core.warning(
+          `Skipping invalid regex pattern '${rule.find}': ${e.message}`
+        );
       }
+    } else if (rule.type === "branding") {
+      core.debug("Applying default branding replacement for title.");
+      const brandingRegex = new RegExp("^# (Awesome .+)$", "gm");
+      processedContent = processedContent.replace(
+        brandingRegex,
+        "# $1 with stars"
+      );
     }
   }
 
   return processedContent;
 }
 
-/**
- * Processes a single markdown file: applies replacements and then enhances GitHub links.
- */
 export async function processMarkdownFile(
   filePath: string,
   token: string,
@@ -78,10 +87,8 @@ export async function processMarkdownFile(
   try {
     const originalContent = await fs.readFile(filePath, "utf-8");
 
-    // Step 1: Apply pre-parsed find-and-replace rules
     const contentAfterReplacements = applyReplacements(originalContent, rules);
 
-    // Step 2: Process for star badge enhancements
     const processor = unified()
       .use(remarkParse)
       .use(remarkGfm)
@@ -91,13 +98,12 @@ export async function processMarkdownFile(
     const vfile = await processor.process(contentAfterReplacements);
     let finalContent = String(vfile);
 
-    // Enforce minimal change for the final newline
-    const originalHadNewline = originalContent.endsWith("\n") || originalContent === "";
+    const originalHadNewline =
+      originalContent.endsWith("\n") || originalContent === "";
     if (finalContent.endsWith("\n") && !originalHadNewline) {
       finalContent = finalContent.slice(0, -1);
     }
 
-    // Step 3: Write file only if there are any changes
     if (finalContent !== originalContent) {
       await fs.writeFile(filePath, finalContent, "utf-8");
       core.info(`Successfully updated ${filePath}.`);

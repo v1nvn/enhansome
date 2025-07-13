@@ -43,6 +43,11 @@ inputs:
       Multiline list of regex-based replacements for the enhancement step.
       Each line should be in the format: `pattern:::replacement_string`.
     required: false
+  disable_branding:
+    description: "Set to 'true' to disable the default behavior of appending ' with stars' to Awesome list titles."
+    required: false
+    default: 'false'
+
   # Commit and Push Inputs
   do_commit:
     description: 'Whether to commit and push changes after enhancement.'
@@ -125,6 +130,7 @@ runs:
         working_directory: ${{ inputs.content_destination_path }}
         find_and_replace: ${{ inputs.find_and_replace }}
         regex_find_and_replace: ${{ inputs.regex_find_and_replace }}
+        disable_branding: ${{ inputs.disable_branding }}
 
     - name: Commit and Push Changes
       id: commit_changes

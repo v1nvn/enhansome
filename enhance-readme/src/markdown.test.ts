@@ -223,3 +223,52 @@ describe("processMarkdownFile (Find and Replace)", () => {
     expect(mockedFs.writeFile).not.toHaveBeenCalled();
   });
 });
+
+describe("Branding and Default Replacements", () => {
+  const token = "test-token";
+  const filePath = "README.md";
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGithub.parseGitHubUrl.mockReturnValue(null);
+    mockedGithub.getRepoInfo.mockResolvedValue(null);
+  });
+
+  it("should apply branding rule when present in the rule set", async () => {
+    const originalContent = "# Awesome Go\n\nA list of awesome Go frameworks.";
+    const expectedContent = "# Awesome Go with stars\n\nA list of awesome Go frameworks.";
+    const rules: ReplacementRule[] = [{ type: 'branding' }];
+    
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    
+    await processMarkdownFile(filePath, token, rules);
+
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+
+  it("should NOT apply branding if the rule is not in the rule set", async () => {
+    const originalContent = "# Awesome Go\n\nThis title should not change.";
+    const rules: ReplacementRule[] = []; // Empty rule set
+    
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    
+    await processMarkdownFile(filePath, token, rules);
+
+    expect(mockedFs.writeFile).not.toHaveBeenCalled();
+  });
+
+  it("should still apply user-defined rules when the branding rule is absent", async () => {
+    const originalContent = "# Awesome Go\n\nMy custom placeholder: __PLACEHOLDER__";
+    const expectedContent = "# Awesome Go\n\nMy custom placeholder: Replaced!";
+    
+    const customRules: ReplacementRule[] = [
+      { type: 'literal', find: '__PLACEHOLDER__', replace: 'Replaced!' }
+    ];
+
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    
+    await processMarkdownFile(filePath, token, customRules);
+
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
+});
