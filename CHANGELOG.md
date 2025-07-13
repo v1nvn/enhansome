@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.5.0](https://github.com/v1nvn/enhansome/compare/v1.4.0...v1.5.0) (2025-07-13)
+
+
+### Features
+
+* find and replace ([5bfe7d5](https://github.com/v1nvn/enhansome/commit/5bfe7d5aa2f601c03215658de7ddd12b93471062))
+* new repo setup script ([eed467b](https://github.com/v1nvn/enhansome/commit/eed467b06b0113c300133af836d9ef2a187ea97d))
+* replace branding ([5daa24c](https://github.com/v1nvn/enhansome/commit/5daa24c7ea5f4f4f9dd254b10fe521a22b5e9bf9))
+
+
+### Bug Fixes
+
+* hyphen in branding regex ([2a0936d](https://github.com/v1nvn/enhansome/commit/2a0936d0db9c56e295b62a3724ba81b05758ebde))
+
 ## [1.4.0](https://github.com/v1nvn/enhansome/compare/v1.3.2...v1.4.0) (2025-06-29)
 
 
