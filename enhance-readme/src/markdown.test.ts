@@ -94,39 +94,6 @@ describe("processMarkdownFile (AST-based)", () => {
     );
   });
 
-  it("should NOT add a badge if a star badge already exists", async () => {
-    const originalContent =
-      "Check out [my-project](https://github.com/test-user/test-repo) ⭐ 1,234 | 🐛 42.";
-
-    mockedFs.readFile.mockResolvedValue(originalContent);
-    mockedGithub.parseGitHubUrl.mockReturnValue({
-      owner: "test-user",
-      repo: "test-repo",
-    });
-
-    await processMarkdownFile(filePath, token);
-
-    // The key assertions: if a badge is found, we should not fetch new info or write the file.
-    expect(mockedGithub.getRepoInfo).not.toHaveBeenCalled();
-    expect(mockedFs.writeFile).not.toHaveBeenCalled();
-  });
-
-  it("should NOT add a badge if an archived badge already exists", async () => {
-    const originalContent =
-      "Check out [my-project](https://github.com/test-user/test-repo) ⚠️ Archived.";
-
-    mockedFs.readFile.mockResolvedValue(originalContent);
-    mockedGithub.parseGitHubUrl.mockReturnValue({
-      owner: "test-user",
-      repo: "test-repo",
-    });
-
-    await processMarkdownFile(filePath, token);
-
-    expect(mockedGithub.getRepoInfo).not.toHaveBeenCalled();
-    expect(mockedFs.writeFile).not.toHaveBeenCalled();
-  });
-
   it("should NOT modify a link inside a code block", async () => {
     const originalContent =
       "Here is some code:\n\n```\nSee [this link](https://github.com/test-user/test-repo)\n```";

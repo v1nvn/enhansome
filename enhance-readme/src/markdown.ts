@@ -5,10 +5,11 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkStringify from "remark-stringify";
 import { visit } from "unist-util-visit";
-import type { Root, Link, ListItem, List, Node } from "mdast";
+import type { Root, Link, ListItem, List, Node, Text, Parent } from "mdast";
 import { getRepoInfo, parseGitHubUrl, RepoInfoDetails } from "./github.js";
 
-// Common interface for all replacement operations
+// --- TYPE DEFINITIONS ---
+
 export type ReplacementRule =
   | {
       type: "literal" | "regex";
@@ -18,35 +19,28 @@ export type ReplacementRule =
   | { type: "branding" };
 
 export interface SortOptions {
-  by: 'stars' | 'last_commit' | '';
+  by: "stars" | "last_commit" | "";
   minLinks: number;
 }
 
 interface EnrichedListItem {
   node: ListItem;
   repoInfo: RepoInfoDetails | null;
-  githubUrl?: string;
 }
 
-
-/**
- * Formats an ISO date string into YYYY-MM-DD format.
- */
 function formatDate(isoString: string | null): string {
   if (!isoString) return "";
   return new Date(isoString).toISOString().split("T")[0];
 }
 
-/**
- * Builds the text for the information badge.
- */
-function formatRepoInfo(info: RepoInfoDetails): string {
+function createBadgeText(info: RepoInfoDetails): string {
   if (info.archived) {
     return " ⚠️ Archived";
   }
-  const parts: string[] = [];
-  parts.push(`⭐ ${info.stargazers_count.toLocaleString()}`);
-  parts.push(`🐛 ${info.open_issues_count.toLocaleString()}`);
+  const parts: string[] = [
+    `⭐ ${info.stargazers_count.toLocaleString()}`,
+    `🐛 ${info.open_issues_count.toLocaleString()}`,
+  ];
   if (info.language) {
     parts.push(`🌐 ${info.language}`);
   }
@@ -56,7 +50,20 @@ function formatRepoInfo(info: RepoInfoDetails): string {
   return ` ${parts.join(" | ")}`;
 }
 
-function applyReplacements(content: string, rules: ReplacementRule[]): string {
+function findFirstGitHubLink(node: Parent): string | undefined {
+  let linkUrl: string | undefined;
+  visit(node, "link", (linkNode: Link) => {
+    if (!linkUrl && parseGitHubUrl(linkNode.url)) {
+      linkUrl = linkNode.url;
+    }
+  });
+  return linkUrl;
+}
+
+function applyTextReplacements(
+  content: string,
+  rules: ReplacementRule[]
+): string {
   let processedContent = content;
 
   for (const rule of rules) {
@@ -89,138 +96,160 @@ function applyReplacements(content: string, rules: ReplacementRule[]): string {
 
   return processedContent;
 }
-
-// Helper to find the first valid GitHub link in a list item
-function findGitHubLink(node: ListItem): string | undefined {
-  let linkUrl: string | undefined;
-  visit(node, "link", (linkNode: Link) => {
-    if (!linkUrl && parseGitHubUrl(linkNode.url)) {
-      linkUrl = linkNode.url;
+function collectGitHubLinks(tree: Root): Set<string> {
+  const urls = new Set<string>();
+  visit(tree, "link", (node: Link) => {
+    if (parseGitHubUrl(node.url)) {
+      urls.add(node.url);
     }
   });
-  return linkUrl;
+  return urls;
 }
 
-// The new recursive processor for sorting and enhancing
-async function recursiveEnhancer(node: Node, token: string, options: SortOptions): Promise<void> {
-  // Check if the node is a parent node that can have children
-  if (!("children" in node) || !Array.isArray(node.children)) return;
+async function fetchAllRepoInfo(
+  urls: Set<string>,
+  token: string
+): Promise<Map<string, RepoInfoDetails>> {
+  const repoInfoMap = new Map<string, RepoInfoDetails>();
+  const promises = Array.from(urls).map(async (url) => {
+    const details = parseGitHubUrl(url);
+    if (details) {
+      const info = await getRepoInfo(details.owner, details.repo, token);
+      if (info) {
+        repoInfoMap.set(url, info);
+      }
+    }
+  });
 
-  // 1. Recurse down to handle nested structures first
-  // FIX: Cast node.children to Node[] to resolve the 'unknown' type error.
-  for (const child of (node.children as Node[])) {
-    await recursiveEnhancer(child, token, options);
-  }
+  await Promise.all(promises);
+  core.debug(`Fetched info for ${repoInfoMap.size} repositories.`);
+  return repoInfoMap;
+}
 
-  // 2. Process all lists at the current level
-  const listsInNode = (node.children as Node[]).filter((child): child is List => child.type === 'list');
-  
-  for (const list of listsInNode) {
-    // Heuristic: Check if the list is a candidate for sorting
-    const itemsWithLinks = list.children.filter(item => findGitHubLink(item));
-    if (options.by && itemsWithLinks.length >= options.minLinks) {
-      core.info(`Found a sortable list with ${itemsWithLinks.length} GitHub links.`);
-      
-      // 3. Enrich items with repository data
-      const enrichedItems: EnrichedListItem[] = await Promise.all(
-        list.children.map(async (itemNode) => {
-          const url = findGitHubLink(itemNode);
-          if (url) {
-            const details = parseGitHubUrl(url);
-            if (details) {
-              const repoInfo = await getRepoInfo(details.owner, details.repo, token);
-              return { node: itemNode, repoInfo, githubUrl: url };
-            }
-          }
-          return { node: itemNode, repoInfo: null };
-        })
-      );
+function sortLists(
+  root: Root,
+  repoInfoMap: Map<string, RepoInfoDetails>,
+  options: SortOptions
+) {
+  if (!options.by) return;
 
-      // 4. Sort the enriched items
-      enrichedItems.sort((a, b) => {
-        if (!a.repoInfo) return 1; // a is pushed to the bottom
-        if (!b.repoInfo) return -1; // b is pushed to the bottom
+  visit(root, "list", (list: List) => {
+    const itemsWithLinks = list.children.filter((item) =>
+      findFirstGitHubLink(item)
+    );
+    if (itemsWithLinks.length < options.minLinks) {
+      return;
+    }
 
-        if (options.by === 'stars') {
-          return (b.repoInfo.stargazers_count ?? 0) - (a.repoInfo.stargazers_count ?? 0);
-        }
-        if (options.by === 'last_commit') {
-          const dateA = a.repoInfo.pushed_at ? new Date(a.repoInfo.pushed_at) : new Date(0);
-          const dateB = b.repoInfo.pushed_at ? new Date(b.repoInfo.pushed_at) : new Date(0);
-          return dateB.getTime() - dateA.getTime();
-        }
-        return 0;
-      });
+    const enrichedItems: EnrichedListItem[] = list.children.map((itemNode) => {
+      const url = findFirstGitHubLink(itemNode);
+      const repoInfo = url ? repoInfoMap.get(url) ?? null : null;
+      return { node: itemNode, repoInfo };
+    });
 
-      // 5. Replace the list's children with the sorted nodes
-      list.children = enrichedItems.map(enrichedItem => enrichedItem.node);
+    enrichedItems.sort((a, b) => {
+      if (!a.repoInfo) return 1;
+      if (!b.repoInfo) return -1;
+      if (options.by === "stars") {
+        return (
+          (b.repoInfo.stargazers_count ?? 0) -
+          (a.repoInfo.stargazers_count ?? 0)
+        );
+      }
+
+      if (options.by === "last_commit") {
+        const dateA = a.repoInfo.pushed_at
+          ? new Date(a.repoInfo.pushed_at).getTime()
+          : 0;
+        const dateB = b.repoInfo.pushed_at
+          ? new Date(b.repoInfo.pushed_at).getTime()
+          : 0;
+        return dateB - dateA;
+      }
+
+      return 0;
+    });
+
+    list.children = enrichedItems.map((item) => item.node);
+  });
+}
+
+function addInfoBadges(tree: Root, repoInfoMap: Map<string, RepoInfoDetails>) {
+  const modifications = new Map<Parent, { node: Text; index: number }[]>();
+
+  visit(tree, "link", (node: Link, index?: number, parent?: Parent) => {
+    if (index === undefined || !parent) return;
+
+    const repoInfo = repoInfoMap.get(node.url);
+    if (!repoInfo) {
+      return;
+    }
+
+    const badgeNode: Text = {
+      type: "text",
+      value: createBadgeText(repoInfo),
+    };
+    if (!modifications.has(parent)) {
+      modifications.set(parent, []);
+    }
+    modifications.get(parent)!.push({ node: badgeNode, index: index + 1 });
+  });
+
+  for (const [parent, changes] of modifications.entries()) {
+    changes.sort((a, b) => b.index - a.index);
+    for (const { node, index } of changes) {
+      parent.children.splice(index, 0, node);
     }
   }
 }
 
+function serializeAst(tree: Root, originalContent: string): string {
+  let finalContent = unified()
+    .use(remarkStringify)
+    .use(remarkGfm)
+    .stringify(tree);
 
-async function badgeEnhancer(tree: Root, token: string) {
-    // The badge enhancer logic from before, slightly adapted
-    // It will run after sorting is complete
-    const nodesToUpdate: { node: Link, parent: any, index: number }[] = [];
-    visit(tree, 'link', (node: Link, index, parent) => {
-        if (index === undefined || !parent) return;
-        const nextNode = parent.children[index + 1];
-        if (nextNode?.type === 'text' && /^\s*(⭐|⚠️)/.test(nextNode.value)) return;
-        if (parseGitHubUrl(node.url)) {
-            nodesToUpdate.push({ node, parent, index });
-        }
-    });
-
-    const promises = nodesToUpdate.map(async ({ node }) => {
-        const details = parseGitHubUrl(node.url)!;
-        const info = await getRepoInfo(details.owner, details.repo, token);
-        return { info, node };
-    });
-
-    const results = await Promise.all(promises);
-    const infoMap = new Map(results.map(r => [r.node, r.info]));
-
-    for (let i = nodesToUpdate.length - 1; i >= 0; i--) {
-        const { node, parent, index } = nodesToUpdate[i];
-        const info = infoMap.get(node);
-        if (info) {
-            parent.children.splice(index + 1, 0, { type: 'text', value: formatRepoInfo(info) });
-        }
-    }
+  const originalHadNewline =
+    originalContent.endsWith("\n") || originalContent === "";
+  if (finalContent.endsWith("\n") && !originalHadNewline) {
+    finalContent = finalContent.slice(0, -1);
+  } else if (!finalContent.endsWith("\n") && originalHadNewline) {
+    finalContent += "\n";
+  }
+  return finalContent;
 }
-
 
 export async function processMarkdownFile(
   filePath: string,
   token: string,
-  rules: ReplacementRule[] = [],
-  sortOptions: SortOptions = {by: "", minLinks: 1}
+  replacements: ReplacementRule[] = [],
+  sortOptions: SortOptions = { by: "", minLinks: 2 }
 ): Promise<void> {
   core.info(`Processing file: ${filePath}`);
   try {
     const originalContent = await fs.readFile(filePath, "utf-8");
-    const contentAfterReplacements = applyReplacements(originalContent, rules);
+
+    const contentAfterReplacements = applyTextReplacements(
+      originalContent,
+      replacements
+    );
 
     const processor = unified().use(remarkParse).use(remarkGfm);
     const tree = processor.parse(contentAfterReplacements);
 
-    // Run sorting first if enabled
-    if (sortOptions.by) {
-      await recursiveEnhancer(tree, token, sortOptions);
-    }
-    
-    // Always run badge enhancer
-    await badgeEnhancer(tree, token);
+    // 1. Collect all unique GitHub links from the plain document.
+    const githubUrls = collectGitHubLinks(tree);
 
-    let finalContent = unified().use(remarkStringify).stringify(tree);
+    // 2. Fetch all required data in a single parallel batch.
+    const repoInfoMap = await fetchAllRepoInfo(githubUrls, token);
 
-    const originalHadNewline =
-      originalContent.endsWith("\n") || originalContent === "";
-    if (finalContent.endsWith("\n") && !originalHadNewline) {
-      finalContent = finalContent.slice(0, -1);
-    }
-    
+    // 3. Modify the AST by sorting lists and adding badges.
+    sortLists(tree, repoInfoMap, sortOptions);
+    addInfoBadges(tree, repoInfoMap);
+
+    // 4. Convert the modified AST back to a string.
+    const finalContent = serializeAst(tree, originalContent);
+
     if (finalContent !== originalContent) {
       await fs.writeFile(filePath, finalContent, "utf-8");
       core.info(`Successfully updated ${filePath}.`);
