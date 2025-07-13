@@ -234,15 +234,23 @@ describe("Branding and Default Replacements", () => {
     mockedGithub.getRepoInfo.mockResolvedValue(null);
   });
 
-  it("should apply branding rule when present in the rule set", async () => {
+  it("should apply branding rule for space-based titles", async () => {
     const originalContent = "# Awesome Go\n\nA list of awesome Go frameworks.";
     const expectedContent = "# Awesome Go with stars\n\nA list of awesome Go frameworks.";
     const rules: ReplacementRule[] = [{ type: 'branding' }];
     
     mockedFs.readFile.mockResolvedValue(originalContent);
-    
     await processMarkdownFile(filePath, token, rules);
+    expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
+  });
 
+  it("should apply branding rule for hyphen-based titles", async () => {
+    const originalContent = "# Awesome-Selfhosted\n\nA list of awesome selfhosted software.";
+    const expectedContent = "# Awesome-Selfhosted with stars\n\nA list of awesome selfhosted software.";
+    const rules: ReplacementRule[] = [{ type: 'branding' }];
+    
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules);
     expect(mockedFs.writeFile).toHaveBeenCalledWith(filePath, expectedContent, "utf-8");
   });
 

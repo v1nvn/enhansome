@@ -67,7 +67,7 @@ function applyReplacements(content: string, rules: ReplacementRule[]): string {
       }
     } else if (rule.type === "branding") {
       core.debug("Applying default branding replacement for title.");
-      const brandingRegex = new RegExp("^# (Awesome .+)$", "gm");
+      const brandingRegex = new RegExp("^# (Awesome[\\s-].+)$", "gm");
       processedContent = processedContent.replace(
         brandingRegex,
         "# $1 with stars"
