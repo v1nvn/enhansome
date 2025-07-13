@@ -29,6 +29,11 @@ inputs:
     description: "Set to 'true' to disable the default behavior of appending ' with stars' to Awesome list titles."
     required: false
     default: 'false'
+  sort_by:
+    description: "Sorts lists that meet the threshold. Options: 'stars' or 'last_commit'. Leave empty to disable sorting."
+    required: false
+    default: ''
+
 
 
 runs:
@@ -41,3 +46,5 @@ runs:
     INPUT_FIND_AND_REPLACE: ${{ inputs.find_and_replace }}
     INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}
     INPUT_DISABLE_BRANDING: ${{ inputs.disable_branding }}
+    INPUT_SORT_BY: ${{ inputs.sort_by }}
+
