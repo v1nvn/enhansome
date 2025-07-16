@@ -50,7 +50,7 @@ inputs:
   sort_by:
     description: "Sorts lists that meet the threshold. Options: 'stars' or 'last_commit'. Leave empty to disable sorting."
     required: false
-    default: ''
+    default: 'stars'
 
 
   # Commit and Push Inputs
