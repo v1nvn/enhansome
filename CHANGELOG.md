@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.6.0](https://github.com/v1nvn/enhansome/compare/v1.5.0...v1.6.0) (2025-07-16)
+
+
+### Features
+
+* sort lists ([4e5d381](https://github.com/v1nvn/enhansome/commit/4e5d381443f7cc0a717043242652dd3a17b48678))
+
+
+### Bug Fixes
+
+* fetch all repo info with a concurrency limit ([a2e1727](https://github.com/v1nvn/enhansome/commit/a2e17272d27bcca91b134736a5c76a535088b44c))
+* sort by stars by default ([5e3d3ab](https://github.com/v1nvn/enhansome/commit/5e3d3ab0b97cdb7514e8d8a067e3af7395734223))
+
 ## [1.5.0](https://github.com/v1nvn/enhansome/compare/v1.4.0...v1.5.0) (2025-07-13)
 
 
