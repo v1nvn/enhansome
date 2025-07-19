@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/v1nvn/enhansome/compare/v1.6.0...v1.6.1) (2025-07-19)
+
+
+### Bug Fixes
+
+* handle relative links ([3e80008](https://github.com/v1nvn/enhansome/commit/3e80008e4540cd220643e51492798fb8bf179587))
+
 ## [1.6.0](https://github.com/v1nvn/enhansome/compare/v1.5.0...v1.6.0) (2025-07-16)
 
 
