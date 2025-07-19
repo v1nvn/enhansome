@@ -33,6 +33,11 @@ inputs:
     description: "Sorts lists that meet the threshold. Options: 'stars' or 'last_commit'. Leave empty to disable sorting."
     required: false
     default: ''
+  relative_link_prefix:
+    description: 'A path prefix to prepend to all relative links. Useful when content is moved from a subdirectory.'
+    required: false
+    default: ''
+
 
 
 
@@ -47,4 +52,6 @@ runs:
     INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}
     INPUT_DISABLE_BRANDING: ${{ inputs.disable_branding }}
     INPUT_SORT_BY: ${{ inputs.sort_by }}
+    INPUT_RELATIVE_LINK_PREFIX: ${{ inputs.relative_link_prefix }}
+
 

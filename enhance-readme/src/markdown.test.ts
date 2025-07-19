@@ -704,3 +704,42 @@ describe("fetchAllRepoInfo with Concurrency", () => {
     expect(mockedGithub.getRepoInfo).not.toHaveBeenCalled();
   });
 });
+
+describe("Relative Link Rewriting", () => {
+  const token = "test-token";
+  const filePath = "test.md";
+  const rules: ReplacementRule[] = [];
+  const sortOptions: SortOptions = { by: '', minLinks: 999 }; // Disable sorting for this test
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockedGithub.getRepoInfo.mockResolvedValue(null); // Disable badge enhancement for this test
+  });
+
+  it("should prepend a prefix to relative links", async () => {
+    const originalContent = `
+- [Local Doc](./docs/PAGE.md)
+- [Image](../images/asset.png)
+    `;
+    const expectedContent = `
+* [Local Doc](origin/docs/PAGE.md)
+* [Image](images/asset.png)
+`;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules, sortOptions, "origin");
+    
+    const writtenContent = mockedFs.writeFile.mock.calls[0][1];
+    expect(writtenContent.trim()).toEqual(expectedContent.trim());
+  });
+
+  it("should NOT prepend a prefix to absolute or fragment links", async () => {
+    const originalContent = `
+* [GitHub](https://github.com)
+* [Heading](#heading)
+    `;
+    mockedFs.readFile.mockResolvedValue(originalContent);
+    await processMarkdownFile(filePath, token, rules, sortOptions, "origin");
+
+    expect(mockedFs.writeFile).not.toHaveBeenCalled();
+  });
+});

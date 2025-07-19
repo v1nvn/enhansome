@@ -1,5 +1,6 @@
 import * as core from "@actions/core";
 import * as fs from "fs/promises";
+import * as path from "path";
 import { unified } from "unified";
 import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
@@ -223,6 +224,24 @@ function addInfoBadges(tree: Root, repoInfoMap: Map<string, RepoInfoDetails>) {
   }
 }
 
+function fixRelativeLinks(tree: Root, relativeLinkPrefix: string) {
+  if (!relativeLinkPrefix) {
+    return;
+  }
+
+  if (relativeLinkPrefix) {
+    visit(tree, "link", (node) => {
+      if (
+        !node.url.startsWith("http") &&
+        !node.url.startsWith("/") &&
+        !node.url.startsWith("#")
+      ) {
+        node.url = path.join(relativeLinkPrefix, node.url).replace(/\\/g, "/");
+      }
+    });
+  }
+}
+
 function serializeAst(tree: Root, originalContent: string): string {
   let finalContent = unified()
     .use(remarkStringify)
@@ -243,7 +262,8 @@ export async function processMarkdownFile(
   filePath: string,
   token: string,
   replacements: ReplacementRule[] = [],
-  sortOptions: SortOptions = { by: "", minLinks: 2 }
+  sortOptions: SortOptions = { by: "", minLinks: 2 },
+  relativeLinkPrefix: string = ""
 ): Promise<void> {
   core.info(`Processing file: ${filePath}`);
   try {
@@ -266,11 +286,12 @@ export async function processMarkdownFile(
     // 3. Modify the AST by sorting lists and adding badges.
     sortLists(tree, repoInfoMap, sortOptions);
     addInfoBadges(tree, repoInfoMap);
+    fixRelativeLinks(tree, relativeLinkPrefix);
 
     // 4. Convert the modified AST back to a string.
     const finalContent = serializeAst(tree, originalContent);
 
-    if (finalContent !== originalContent) {
+    if (finalContent.trim() !== originalContent.trim()) {
       await fs.writeFile(filePath, finalContent, "utf-8");
       core.info(`Successfully updated ${filePath}.`);
     } else {

@@ -47,6 +47,7 @@ async function run(): Promise<void> {
     const regexFindAndReplaceRaw = core.getInput("regex_find_and_replace");
     const disableBranding = core.getInput("disable_branding") === 'true';
     const sortBy = core.getInput("sort_by") as 'stars' | 'last_commit' | '';
+    const relativeLinkPrefix = core.getInput("relative_link_prefix");
 
     const filePaths = markdownFilesRaw.split(/\s+/).filter(Boolean);
     if (filePaths.length === 0) {
@@ -68,7 +69,7 @@ async function run(): Promise<void> {
 
     core.info(`Markdown files to process: ${filePaths.join(", ")}`);
     for (const filePath of filePaths) {
-      await processMarkdownFile(filePath, token, rules, sortOptions);
+      await processMarkdownFile(filePath, token, rules, sortOptions, relativeLinkPrefix);
     }
 
     core.info("Process finished.");

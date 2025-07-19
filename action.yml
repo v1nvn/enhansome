@@ -137,6 +137,8 @@ runs:
         regex_find_and_replace: ${{ inputs.regex_find_and_replace }}
         disable_branding: ${{ inputs.disable_branding }}
         sort_by: ${{ inputs.sort_by }}
+        relative_link_prefix: ${{ inputs.submodule_path }}
+
 
 
     - name: Commit and Push Changes
