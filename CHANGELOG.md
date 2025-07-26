@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/v1nvn/enhansome/compare/v1.6.1...v1.7.0) (2025-07-26)
+
+
+### Features
+
+* lint config and fixes ([95ef5a7](https://github.com/v1nvn/enhansome/commit/95ef5a71bcd17e2a015ef0e2ab298d3012ec3e11))
+
 ## [1.6.1](https://github.com/v1nvn/enhansome/compare/v1.6.0...v1.6.1) (2025-07-19)
 
 
