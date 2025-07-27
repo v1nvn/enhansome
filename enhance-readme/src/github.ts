@@ -111,6 +111,7 @@ export async function getRepoInfo(
           }
 
           await sleep(waitTimeSeconds * 1000);
+          continue;
         }
       }
 

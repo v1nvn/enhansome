@@ -1,5 +1,4 @@
 import * as core from '@actions/core';
-import * as fs from 'fs/promises';
 import * as path from 'path';
 import remarkGfm from 'remark-gfm';
 import remarkParse from 'remark-parse';
@@ -73,55 +72,39 @@ export async function fetchAllRepoInfo(
   return repoInfoMap;
 }
 
-export async function processMarkdownFile(
-  filePath: string,
+export async function processMarkdownContent(
+  originalContent: string,
   token: string,
   replacements: ReplacementRule[] = [],
   sortOptions: SortOptions = { by: '', minLinks: 2 },
   relativeLinkPrefix = '',
-): Promise<void> {
-  core.info(`Processing file: ${filePath}`);
-  try {
-    const originalContent = await fs.readFile(filePath, 'utf-8');
+): Promise<{ finalContent: string; isChanged: boolean }> {
+  const contentAfterReplacements = applyTextReplacements(
+    originalContent,
+    replacements,
+  );
 
-    const contentAfterReplacements = applyTextReplacements(
-      originalContent,
-      replacements,
-    );
+  const processor = unified().use(remarkParse).use(remarkGfm);
+  const tree = processor.parse(contentAfterReplacements);
 
-    const processor = unified().use(remarkParse).use(remarkGfm);
-    const tree = processor.parse(contentAfterReplacements);
+  // 1. Collect all unique GitHub links from the plain document.
+  const githubUrls = collectGitHubLinks(tree);
 
-    // 1. Collect all unique GitHub links from the plain document.
-    const githubUrls = collectGitHubLinks(tree);
+  // 2. Fetch all required data in a single parallel batch.
+  const repoInfoMap = await fetchAllRepoInfo(githubUrls, token);
 
-    // 2. Fetch all required data in a single parallel batch.
-    const repoInfoMap = await fetchAllRepoInfo(githubUrls, token);
+  // 3. Modify the AST by sorting lists and adding badges.
+  sortLists(tree, repoInfoMap, sortOptions);
+  addInfoBadges(tree, repoInfoMap);
+  fixRelativeLinks(tree, relativeLinkPrefix);
 
-    // 3. Modify the AST by sorting lists and adding badges.
-    sortLists(tree, repoInfoMap, sortOptions);
-    addInfoBadges(tree, repoInfoMap);
-    fixRelativeLinks(tree, relativeLinkPrefix);
+  // 4. Convert the modified AST back to a string.
+  const finalContent = serializeAst(tree, originalContent);
 
-    // 4. Convert the modified AST back to a string.
-    const finalContent = serializeAst(tree, originalContent);
-
-    if (finalContent.trim() !== originalContent.trim()) {
-      await fs.writeFile(filePath, finalContent, 'utf-8');
-      core.info(`Successfully updated ${filePath}.`);
-    } else {
-      core.info(`No changes needed for ${filePath}.`);
-    }
-  } catch (error: unknown) {
-    if (error instanceof Error) {
-      core.error(`Error processing file ${filePath}: ${error.message}`);
-      if (error.stack) {
-        core.debug(error.stack);
-      }
-    } else {
-      core.error(`Error processing file ${filePath}: ${error}`);
-    }
-  }
+  return {
+    finalContent,
+    isChanged: finalContent.trim() !== originalContent.trim(),
+  };
 }
 
 function addInfoBadges(tree: Root, repoInfoMap: Map<string, RepoInfoDetails>) {

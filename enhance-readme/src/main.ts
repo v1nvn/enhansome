@@ -1,7 +1,8 @@
 import * as core from '@actions/core';
+import * as fs from 'fs/promises';
 
 import {
-  processMarkdownFile,
+  processMarkdownContent,
   ReplacementRule,
   SortOptions,
 } from './markdown.js';
@@ -42,6 +43,42 @@ function parseReplacementRules(
   }
 
   return rules;
+}
+
+async function processMarkdownFile(
+  filePath: string,
+  token: string,
+  rules?: ReplacementRule[],
+  sortOptions?: SortOptions,
+  relativeLinkPrefix?: string,
+) {
+  core.info(`Processing file: ${filePath}`);
+  try {
+    const originalContent = await fs.readFile(filePath, 'utf-8');
+    const { finalContent, isChanged } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      sortOptions,
+      relativeLinkPrefix,
+    );
+
+    if (isChanged) {
+      await fs.writeFile(filePath, finalContent, 'utf-8');
+      core.info(`Successfully updated ${filePath}.`);
+    } else {
+      core.info(`No changes needed for ${filePath}.`);
+    }
+  } catch (error: unknown) {
+    if (error instanceof Error) {
+      core.error(`Error processing file ${filePath}: ${error.message}`);
+      if (error.stack) {
+        core.debug(error.stack);
+      }
+    } else {
+      core.error(`Error processing file ${filePath}: ${error}`);
+    }
+  }
 }
 
 async function run(): Promise<void> {

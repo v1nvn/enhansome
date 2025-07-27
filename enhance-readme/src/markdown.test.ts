@@ -1,29 +1,19 @@
-import * as fs from 'fs/promises';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as github from './github.js';
 import { RepoInfoDetails } from './github.js';
 import {
   fetchAllRepoInfo,
-  processMarkdownFile,
+  processMarkdownContent,
   ReplacementRule,
   SortOptions,
 } from './markdown.js';
 
 // Mock the modules we depend on
-vi.mock(import('fs/promises'), async importOriginal => {
-  const mod = await importOriginal();
-  return {
-    ...mod,
-    readFile: vi.fn(),
-    writeFile: vi.fn(),
-  };
-});
 vi.mock('./github.js');
 
-describe('processMarkdownFile (AST-based)', () => {
+describe('processMarkdownContent (AST-based)', () => {
   const token = 'test-token';
-  const filePath = 'README.md';
 
   beforeEach(() => {
     // Reset all mocks before each test to ensure isolation
@@ -45,7 +35,6 @@ describe('processMarkdownFile (AST-based)', () => {
       stargazers_count: 1234,
     };
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
     vi.mocked(github.parseGitHubUrl).mockReturnValue({
       owner: 'test-user',
       repo: 'test-repo',
@@ -53,19 +42,17 @@ describe('processMarkdownFile (AST-based)', () => {
     // Mock getRepoInfo to return our rich data object
     vi.mocked(github.getRepoInfo).mockResolvedValue(mockRepoData);
 
-    await processMarkdownFile(filePath, token);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+    );
 
-    expect(fs.readFile).toHaveBeenCalledWith(filePath, 'utf-8');
     expect(github.getRepoInfo).toHaveBeenCalledWith(
       'test-user',
       'test-repo',
       token,
     );
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
-    );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should add an "Archived" badge if the repository is archived', async () => {
@@ -82,53 +69,53 @@ describe('processMarkdownFile (AST-based)', () => {
       stargazers_count: 500,
     };
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
     vi.mocked(github.parseGitHubUrl).mockReturnValue({
       owner: 'test-user',
       repo: 'old-repo',
     });
     vi.mocked(github.getRepoInfo).mockResolvedValue(mockRepoData);
 
-    await processMarkdownFile(filePath, token);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+    );
 
     expect(github.getRepoInfo).toHaveBeenCalled();
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
-    );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should NOT modify a link inside a code block', async () => {
     const originalContent =
       'Here is some code:\n\n```\nSee [this link](https://github.com/test-user/test-repo)\n```';
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-
-    await processMarkdownFile(filePath, token);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+    );
 
     // The AST parser will ignore the link inside the code block.
     expect(github.parseGitHubUrl).not.toHaveBeenCalled();
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(finalContent).toBe(originalContent);
   });
 
   it('should correctly handle a file with no GitHub links', async () => {
     const originalContent =
       'This file has [a link to Google](https://google.com) but no GitHub repos.';
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
     // Simulate parseGitHubUrl returning null for non-GitHub links
     vi.mocked(github.parseGitHubUrl).mockReturnValue(null);
 
-    await processMarkdownFile(filePath, token);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+    );
 
     expect(github.getRepoInfo).not.toHaveBeenCalled();
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(finalContent).toBe(originalContent);
   });
 });
 
-describe('processMarkdownFile (Find and Replace)', () => {
+describe('processMarkdownContent (Find and Replace)', () => {
   const token = 'test-token';
-  const filePath = 'CHANGELOG.md';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -143,13 +130,12 @@ describe('processMarkdownFile (Find and Replace)', () => {
       { find: 'v__VERSION__', replace: 'v1.2.3', type: 'literal' },
     ];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
     );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should perform a regex find and replace', async () => {
@@ -160,13 +146,12 @@ describe('processMarkdownFile (Find and Replace)', () => {
       { find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD', type: 'regex' },
     ];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
     );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should perform multiple rules of both types', async () => {
@@ -177,13 +162,12 @@ describe('processMarkdownFile (Find and Replace)', () => {
       { find: '\\d{4}-\\d{2}-\\d{2}', replace: 'TBD', type: 'regex' },
     ];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
     );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should perform replacements AND add a star badge in the correct order', async () => {
@@ -195,7 +179,6 @@ describe('processMarkdownFile (Find and Replace)', () => {
     const rules: ReplacementRule[] = [
       { find: '__STATUS__', replace: 'Released', type: 'literal' },
     ];
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
 
     vi.mocked(github.parseGitHubUrl).mockImplementation((url: string) =>
       url.includes('github.com')
@@ -210,35 +193,37 @@ describe('processMarkdownFile (Find and Replace)', () => {
       stargazers_count: 500,
     });
 
-    await processMarkdownFile(filePath, token, rules);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+    );
     expect(github.getRepoInfo).toHaveBeenCalledWith(
       'test-user',
       'test-repo',
       token,
     );
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
-    );
+    expect(finalContent).toBe(expectedContent);
   });
 
-  it('should not write the file if no changes are made', async () => {
+  it('should not make changes if no rules match', async () => {
     const originalContent =
       'This file has no placeholders and no github links.';
     const rules: ReplacementRule[] = [
       { find: 'non_existent', replace: 'string', type: 'literal' },
     ];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+    );
+    expect(finalContent).toBe(originalContent);
   });
 });
 
 describe('Branding and Default Replacements', () => {
   const token = 'test-token';
-  const filePath = 'README.md';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -252,13 +237,12 @@ describe('Branding and Default Replacements', () => {
       '# Awesome Go with stars\n\nA list of awesome Go frameworks.';
     const rules: ReplacementRule[] = [{ type: 'branding' }];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
     );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should apply branding rule for hyphen-based titles', async () => {
@@ -268,24 +252,25 @@ describe('Branding and Default Replacements', () => {
       '# Awesome-Selfhosted with stars\n\nA list of awesome selfhosted software.';
     const rules: ReplacementRule[] = [{ type: 'branding' }];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules);
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
     );
+    expect(finalContent).toBe(expectedContent);
   });
 
   it('should NOT apply branding if the rule is not in the rule set', async () => {
     const originalContent = '# Awesome Go\n\nThis title should not change.';
     const rules: ReplacementRule[] = []; // Empty rule set
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+    );
 
-    await processMarkdownFile(filePath, token, rules);
-
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(finalContent).toBe(originalContent);
   });
 
   it('should still apply user-defined rules when the branding rule is absent', async () => {
@@ -297,21 +282,18 @@ describe('Branding and Default Replacements', () => {
       { find: '__PLACEHOLDER__', replace: 'Replaced!', type: 'literal' },
     ];
 
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-
-    await processMarkdownFile(filePath, token, customRules);
-
-    expect(fs.writeFile).toHaveBeenCalledWith(
-      filePath,
-      expectedContent,
-      'utf-8',
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      customRules,
     );
+
+    expect(finalContent).toBe(expectedContent);
   });
 });
 
 describe('Sorting', () => {
   const token = 'test-token';
-  const filePath = 'test.md';
   const rules: ReplacementRule[] = [];
 
   beforeEach(() => {
@@ -371,18 +353,21 @@ describe('Sorting', () => {
 * [Project C](https://github.com/user/repo-c) - 300 stars
 * [Project A](https://github.com/user/repo-a) - 200 stars
     `;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, {
-      by: 'stars',
-      minLinks: 2,
-    });
-
-    const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-    expect(writtenContent.indexOf('repo-c')).toBeLessThan(
-      writtenContent.indexOf('repo-a'),
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      {
+        by: 'stars',
+        minLinks: 2,
+      },
     );
-    expect(writtenContent.indexOf('repo-a')).toBeLessThan(
-      writtenContent.indexOf('repo-b'),
+
+    expect(finalContent.indexOf('repo-c')).toBeLessThan(
+      finalContent.indexOf('repo-a'),
+    );
+    expect(finalContent.indexOf('repo-a')).toBeLessThan(
+      finalContent.indexOf('repo-b'),
     );
   });
 
@@ -392,18 +377,21 @@ describe('Sorting', () => {
 * [Project C](https://github.com/user/repo-c) - Mar 1
 * [Project B](https://github.com/user/repo-b) - Feb 1
     `;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, {
-      by: 'last_commit',
-      minLinks: 2,
-    });
-
-    const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-    expect(writtenContent.indexOf('repo-c')).toBeLessThan(
-      writtenContent.indexOf('repo-b'),
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      {
+        by: 'last_commit',
+        minLinks: 2,
+      },
     );
-    expect(writtenContent.indexOf('repo-b')).toBeLessThan(
-      writtenContent.indexOf('repo-a'),
+
+    expect(finalContent.indexOf('repo-c')).toBeLessThan(
+      finalContent.indexOf('repo-b'),
+    );
+    expect(finalContent.indexOf('repo-b')).toBeLessThan(
+      finalContent.indexOf('repo-a'),
     );
   });
 
@@ -415,31 +403,33 @@ describe('Sorting', () => {
   * [Inner A](https://github.com/user/inner-a) - 900 stars
 * [Outer B](https://github.com/user/repo-b) - 100 stars
     `;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, {
-      by: 'stars',
-      minLinks: 2,
-    });
-
-    const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      {
+        by: 'stars',
+        minLinks: 2,
+      },
+    );
 
     // 1. Check that the inner list was sorted correctly (900 stars > 500 stars)
-    expect(writtenContent.indexOf('inner-a')).toBeLessThan(
-      writtenContent.indexOf('inner-b'),
+    expect(finalContent.indexOf('inner-a')).toBeLessThan(
+      finalContent.indexOf('inner-b'),
     );
 
     // 2. Check that the outer list was sorted correctly (300 > 200 > 100)
-    expect(writtenContent.indexOf('Outer C')).toBeLessThan(
-      writtenContent.indexOf('Outer A'),
+    expect(finalContent.indexOf('Outer C')).toBeLessThan(
+      finalContent.indexOf('Outer A'),
     );
-    expect(writtenContent.indexOf('Outer A')).toBeLessThan(
-      writtenContent.indexOf('Outer B'),
+    expect(finalContent.indexOf('Outer A')).toBeLessThan(
+      finalContent.indexOf('Outer B'),
     );
 
     // 3. Check that the sorted inner list is still properly nested within its original parent item
-    const outerA_Index = writtenContent.indexOf('Outer A');
-    const innerA_Index = writtenContent.indexOf('inner-a');
-    const outerB_Index = writtenContent.indexOf('Outer B');
+    const outerA_Index = finalContent.indexOf('Outer A');
+    const innerA_Index = finalContent.indexOf('inner-a');
+    const outerB_Index = finalContent.indexOf('Outer B');
     expect(innerA_Index).toBeGreaterThan(outerA_Index);
     expect(innerA_Index).toBeLessThan(outerB_Index);
   });
@@ -450,25 +440,26 @@ describe('Sorting', () => {
 * Just a normal list item
 * And another one
     `;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
 
-    await processMarkdownFile(filePath, token, rules, {
-      by: 'stars',
-      minLinks: 2,
-    });
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      {
+        by: 'stars',
+        minLinks: 2,
+      },
+    );
 
-    const writtenContent = (vi.mocked(fs.writeFile).mock.calls[0]?.[1] ??
-      originalContent) as string;
     // Expect the original order to be preserved since no sorting occurred
-    expect(writtenContent.indexOf('repo-a')).toBeLessThan(
-      writtenContent.indexOf('normal list item'),
+    expect(finalContent.indexOf('repo-a')).toBeLessThan(
+      finalContent.indexOf('normal list item'),
     );
   });
 });
 
 describe('Comprehensive End-to-End Test', () => {
   const token = 'test-token';
-  const filePath = 'COMPLEX_README.md';
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -517,7 +508,6 @@ This is a test list.
 `;
 
     // 3. Set up mocks for the GitHub API
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
     vi.mocked(github.parseGitHubUrl).mockImplementation((url: string) => {
       if (url.includes('github.com')) {
         return { owner: 'user', repo: url.split('/')[4] };
@@ -584,12 +574,15 @@ This is a test list.
     const sortOptions: SortOptions = { by: 'stars', minLinks: 2 };
 
     // 5. Execute the process
-    await processMarkdownFile(filePath, token, rules, sortOptions);
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      sortOptions,
+    );
 
     // 6. Assert the final output
-    expect(fs.writeFile).toHaveBeenCalledTimes(1);
-    const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-    expect(writtenContent).toEqual(expectedContent);
+    expect(finalContent).toEqual(expectedContent);
   });
 });
 
@@ -708,7 +701,6 @@ describe('fetchAllRepoInfo with Concurrency', () => {
 
 describe('Relative Link Rewriting', () => {
   const token = 'test-token';
-  const filePath = 'test.md';
   const rules: ReplacementRule[] = [];
   const sortOptions: SortOptions = { by: '', minLinks: 999 }; // Disable sorting for this test
 
@@ -724,11 +716,15 @@ describe('Relative Link Rewriting', () => {
     `;
     const expectedContent = `* [Local Doc](origin/docs/PAGE.md)
 * [Image](images/asset.png)`;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, sortOptions, 'origin');
+    const { finalContent } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      sortOptions,
+      'origin',
+    );
 
-    const writtenContent = vi.mocked(fs.writeFile).mock.calls[0][1] as string;
-    expect(writtenContent.trim()).toEqual(expectedContent.trim());
+    expect(finalContent).toEqual(expectedContent);
   });
 
   it('should NOT prepend a prefix to absolute or fragment links', async () => {
@@ -736,9 +732,14 @@ describe('Relative Link Rewriting', () => {
 * [GitHub](https://github.com)
 * [Heading](#heading)
     `;
-    vi.mocked(fs.readFile).mockResolvedValue(originalContent);
-    await processMarkdownFile(filePath, token, rules, sortOptions, 'origin');
+    const { isChanged } = await processMarkdownContent(
+      originalContent,
+      token,
+      rules,
+      sortOptions,
+      'origin',
+    );
 
-    expect(fs.writeFile).not.toHaveBeenCalled();
+    expect(isChanged).toBe(false);
   });
 });
