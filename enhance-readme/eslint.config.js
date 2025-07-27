@@ -34,6 +34,9 @@ export default tseslint.config(
       'import-x/no-dynamic-require': 'warn',
       'import-x/no-nodejs-modules': 'off',
       '@typescript-eslint/restrict-template-expressions': 'off',
+      curly: 'error',
+      'func-style': ['error', 'declaration'],
+      'no-else-return': 'error',
       'perfectionist/sort-imports': [
         'error',
         {

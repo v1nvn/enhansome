@@ -20,7 +20,7 @@ function parseReplacementRules(
       .forEach(line => {
         const [find, ...rest] = line.split(separator);
         rules.push({
-          find: find,
+          find,
           replace: rest.join(separator),
           type: 'literal',
         });
@@ -34,7 +34,7 @@ function parseReplacementRules(
       .forEach(line => {
         const [find, ...rest] = line.split(separator);
         rules.push({
-          find: find,
+          find,
           replace: rest.join(separator),
           type: 'regex',
         });

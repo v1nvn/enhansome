@@ -1,9 +1,9 @@
 import * as core from '@actions/core';
 import axios, { AxiosError } from 'axios';
 
-const GITHUB_API_URL = 'https://api.github.com';
-const MAX_RETRIES = 3;
-const MAX_WAIT_TIME_SECONDS = 300; // 5 minutes
+const GITHUB_API_URL = 'https://api.github.com',
+  MAX_RETRIES = 3,
+  MAX_WAIT_TIME_SECONDS = 300; // 5 minutes
 
 export interface RepoInfoDetails {
   archived: boolean;
@@ -50,7 +50,7 @@ export async function getRepoInfo(
       const response = await axios.get<RepoInfoDetails>(repoUrl, { headers });
 
       if (response.status === 200) {
-        const data = response.data;
+        const { data } = response;
 
         return {
           archived: data.archived,
@@ -59,14 +59,13 @@ export async function getRepoInfo(
           pushed_at: data.pushed_at,
           stargazers_count: data.stargazers_count,
         };
-      } else {
-        core.warning(
-          `Received an unexpected successful response for ${owner}/${repo}. Data: ${JSON.stringify(
-            response.data,
-          )}`,
-        );
-        return null;
       }
+      core.warning(
+        `Received an unexpected successful response for ${owner}/${repo}. Data: ${JSON.stringify(
+          response.data,
+        )}`,
+      );
+      return null;
     } catch (error: unknown) {
       if (attempt === MAX_RETRIES) {
         break;
@@ -77,8 +76,8 @@ export async function getRepoInfo(
       }
 
       if (isAxiosError(error) && error.response) {
-        const headers = error.response.headers;
-        const status = error.response.status;
+        const { headers } = error.response,
+          { status } = error.response;
         let waitTimeSeconds = 0;
 
         // Guideline 1: Prioritize the 'Retry-After' header if present (sent with 403 or 429).
@@ -94,8 +93,8 @@ export async function getRepoInfo(
           headers['x-ratelimit-remaining'] === '0' &&
           headers['x-ratelimit-reset']
         ) {
-          const resetTimestamp = Number(headers['x-ratelimit-reset']);
-          const currentTime = Math.floor(Date.now() / 1000);
+          const currentTime = Math.floor(Date.now() / 1000),
+            resetTimestamp = Number(headers['x-ratelimit-reset']);
           waitTimeSeconds = Math.max(0, resetTimestamp - currentTime) + 1; // Add 1s buffer
           core.warning(
             `Primary rate limit hit for ${owner}/${repo} (Status: ${status}). Waiting for reset in ${waitTimeSeconds} seconds.`,
@@ -112,7 +111,6 @@ export async function getRepoInfo(
           }
 
           await sleep(waitTimeSeconds * 1000);
-          continue;
         }
       }
 
@@ -157,8 +155,8 @@ export function parseGitHubUrl(url: string): null | RepoIdentifier {
       .split('/')
       .filter(part => part.length > 0);
     if (pathParts.length >= 2) {
-      const owner = pathParts[0];
-      const repo = pathParts[1].replace(/\.git$/, ''); // Remove .git suffix if present
+      const owner = pathParts[0],
+        repo = pathParts[1].replace(/\.git$/, ''); // Remove .git suffix if present
       return { owner, repo };
     }
     return null;

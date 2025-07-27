@@ -41,10 +41,12 @@ export async function fetchAllRepoInfo(
 
   // A worker pulls a URL from the queue, processes it, and repeats
   // until the queue is empty.
-  const worker = async () => {
+  async function worker() {
     while (queue.length > 0) {
       const url = queue.shift();
-      if (!url) continue;
+      if (!url) {
+        continue;
+      }
 
       const details = parseGitHubUrl(url);
       if (details) {
@@ -59,7 +61,7 @@ export async function fetchAllRepoInfo(
         }
       }
     }
-  };
+  }
 
   // Create and start the pool of workers.
   const workers = Array(CONCURRENCY_LIMIT).fill(null).map(worker);
@@ -113,7 +115,9 @@ export async function processMarkdownFile(
   } catch (error: unknown) {
     if (error instanceof Error) {
       core.error(`Error processing file ${filePath}: ${error.message}`);
-      if (error.stack) core.debug(error.stack);
+      if (error.stack) {
+        core.debug(error.stack);
+      }
     } else {
       core.error(`Error processing file ${filePath}: ${error}`);
     }
@@ -124,7 +128,9 @@ function addInfoBadges(tree: Root, repoInfoMap: Map<string, RepoInfoDetails>) {
   const modifications = new Map<Parent, { index: number; node: Text }[]>();
 
   visit(tree, 'link', (node: Link, index?: number, parent?: Parent) => {
-    if (index === undefined || !parent) return;
+    if (index === undefined || !parent) {
+      return;
+    }
 
     const repoInfo = repoInfoMap.get(node.url);
     if (!repoInfo) {
@@ -242,7 +248,9 @@ function fixRelativeLinks(tree: Root, relativeLinkPrefix: string) {
 }
 
 function formatDate(isoString: null | string): string {
-  if (!isoString) return '';
+  if (!isoString) {
+    return '';
+  }
   return new Date(isoString).toISOString().split('T')[0];
 }
 
@@ -267,7 +275,9 @@ function sortLists(
   repoInfoMap: Map<string, RepoInfoDetails>,
   options: SortOptions,
 ) {
-  if (!options.by) return;
+  if (!options.by) {
+    return;
+  }
 
   visit(root, 'list', (list: List) => {
     const itemsWithLinks = list.children.filter(item =>
@@ -284,8 +294,12 @@ function sortLists(
     });
 
     enrichedItems.sort((a, b) => {
-      if (!a.repoInfo) return 1;
-      if (!b.repoInfo) return -1;
+      if (!a.repoInfo) {
+        return 1;
+      }
+      if (!b.repoInfo) {
+        return -1;
+      }
       if (options.by === 'stars') {
         return b.repoInfo.stargazers_count - a.repoInfo.stargazers_count;
       }
