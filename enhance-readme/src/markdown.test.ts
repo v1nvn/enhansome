@@ -743,3 +743,149 @@ describe('Relative Link Rewriting', () => {
     expect(isChanged).toBe(false);
   });
 });
+
+describe('JSON Generation and Structure', () => {
+  const token = 'test-token';
+  const rules: ReplacementRule[] = [];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+
+    vi.mocked(github).getRepoInfo.mockImplementation(
+      (owner: string, repo: string): Promise<null | RepoInfoDetails> => {
+        const db: Record<string, RepoInfoDetails> = {
+          'nested-1': {
+            archived: false,
+            language: 'JS',
+            open_issues_count: 4,
+            pushed_at: '2025-01-15T00:00:00Z',
+            stargazers_count: 50,
+          },
+          'nested-2': {
+            archived: false,
+            language: 'TS',
+            open_issues_count: 5,
+            pushed_at: '2025-01-20T00:00:00Z',
+            stargazers_count: 25,
+          },
+          'repo-a': {
+            archived: false,
+            language: 'Go',
+            open_issues_count: 1,
+            pushed_at: '2025-01-01T00:00:00Z',
+            stargazers_count: 100,
+          },
+          'repo-b': {
+            archived: false,
+            language: 'Rust',
+            open_issues_count: 2,
+            pushed_at: '2025-03-01T00:00:00Z',
+            stargazers_count: 300,
+          },
+          'repo-c': {
+            archived: false,
+            language: 'Python',
+            open_issues_count: 3,
+            pushed_at: '2025-02-01T00:00:00Z',
+            stargazers_count: 200,
+          },
+          'single-link-repo': {
+            archived: false,
+            language: 'Java',
+            open_issues_count: 6,
+            pushed_at: '2024-01-01T00:00:00Z',
+            stargazers_count: 10,
+          },
+        };
+        return Promise.resolve(db[repo] ?? null);
+      },
+    );
+
+    vi.mocked(github).parseGitHubUrl.mockImplementation((url: string) => {
+      if (!url.includes('github.com')) {
+        return null;
+      }
+      const parts = url.split('/');
+      return { owner: parts[3], repo: parts[4] };
+    });
+  });
+
+  it('should handle a complex markdown structure and create section-based JSON', async () => {
+    const complexContent = `
+# My Awesome List
+
+A paragraph that is not part of any section.
+
+### First Section (Valid)
+
+This is the description for the first section.
+It can span multiple paragraphs.
+
+* [Repo C](https://github.com/user/repo-c) - 200 stars
+* [Repo B](https://github.com/user/repo-b) - 300 stars
+  * [Nested 1](https://github.com/user/nested-1) - 50 stars.
+  * [Nested 2](https://github.com/user/nested-2) - 25 stars.
+* [Repo A](https://github.com/user/repo-a) - 100 stars
+
+### Second Section (Invalid List)
+This section has a list that will be skipped because it has less than two links.
+* [Single Repo](https://github.com/user/single-link-repo)
+
+### Third Section (Valid Again)
+Another valid section.
+* [Repo A](https://github.com/user/repo-a) - 100 stars.
+* [Repo C](https://github.com/user/repo-c) - 200 stars.
+`;
+
+    const sortOptions: SortOptions = { by: 'stars', minLinks: 2 };
+
+    const { finalContent, jsonData } = await processMarkdownContent(
+      complexContent,
+      token,
+      rules,
+      sortOptions,
+      '',
+    );
+
+    console.log(JSON.stringify(jsonData, null, 2));
+
+    // --- JSON Assertions (should be section-based and UNSORTED) ---
+    expect(jsonData).not.toBeNull();
+
+    // 1. Check that two valid sections were created. The invalid one was skipped.
+    expect(jsonData.items).toHaveLength(2);
+
+    // 2. Check the first section's content
+    const firstSection = jsonData.items[0];
+    expect(firstSection.title).toBe('First Section (Valid)');
+    expect(firstSection.description).toBe(
+      'This is the description for the first section.\nIt can span multiple paragraphs.',
+    );
+    expect(firstSection.items).toHaveLength(3);
+    expect(firstSection.items[0].title).toBe('Repo C'); // Original order is preserved in JSON
+    expect(firstSection.items[1].title).toBe('Repo B');
+
+    // 3. Check nested items in the first section
+    const nestedItems = firstSection.items[1].children;
+    expect(nestedItems).toHaveLength(2);
+    expect(nestedItems[0].title).toBe('Nested 1');
+
+    // 4. Check the second valid section
+    const thirdSection = jsonData.items[1];
+    expect(thirdSection.title).toBe('Third Section (Valid Again)');
+    expect(thirdSection.description).toBe('Another valid section.');
+    expect(thirdSection.items).toHaveLength(2);
+
+    // --- Markdown Content Assertions (should be SORTED) ---
+    const idxB = finalContent.indexOf('repo-b'); // 300 stars
+    const idxC = finalContent.indexOf('repo-c'); // 200 stars
+    const idxA = finalContent.indexOf('repo-a'); // 100 stars
+
+    expect(idxB).toBeLessThan(idxC);
+    expect(idxC).toBeLessThan(idxA);
+
+    const idxNested1 = finalContent.indexOf('nested-1'); // 50 stars
+    const idxNested2 = finalContent.indexOf('nested-2'); // 25 stars
+    expect(idxNested1).toBeLessThan(idxNested2);
+  });
+});

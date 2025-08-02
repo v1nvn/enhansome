@@ -8,9 +8,14 @@ import { visit } from 'unist-util-visit';
 
 import { getRepoInfo, parseGitHubUrl, RepoInfoDetails } from './github.js';
 
-import type { Link, List, ListItem, Parent, Root, Text } from 'mdast';
+import type { Heading, Link, List, ListItem, Parent, Root, Text } from 'mdast';
 
 // --- TYPE DEFINITIONS ---
+
+export interface JsonOutput {
+  items: JsonSection[];
+  metadata: JsonMetadata;
+}
 
 export type ReplacementRule =
   | {
@@ -26,6 +31,39 @@ export interface SortOptions {
 }
 
 interface EnrichedListItem {
+  node: ListItem;
+  repoInfo: null | RepoInfoDetails;
+}
+
+// --- JSON OUTPUT STRUCTURE ---
+interface JsonItem {
+  children: JsonItem[];
+  description: null | string;
+  repo_info?: {
+    archived: boolean;
+    language: null | string;
+    last_commit: null | string;
+    owner: string;
+    repo: string;
+    stars: number;
+  };
+  title: string;
+}
+
+interface JsonMetadata {
+  last_updated: string;
+  // source_repository: null | string;
+  // source_repository_description: null | string;
+  title: string;
+}
+
+interface JsonSection {
+  description: null | string;
+  items: JsonItem[];
+  title: string;
+}
+
+interface ProcessedListItem {
   node: ListItem;
   repoInfo: null | RepoInfoDetails;
 }
@@ -78,7 +116,7 @@ export async function processMarkdownContent(
   replacements: ReplacementRule[] = [],
   sortOptions: SortOptions = { by: '', minLinks: 2 },
   relativeLinkPrefix = '',
-): Promise<{ finalContent: string; isChanged: boolean }> {
+): Promise<{ finalContent: string; isChanged: boolean; jsonData: JsonOutput }> {
   const contentAfterReplacements = applyTextReplacements(
     originalContent,
     replacements,
@@ -93,6 +131,19 @@ export async function processMarkdownContent(
   // 2. Fetch all required data in a single parallel batch.
   const repoInfoMap = await fetchAllRepoInfo(githubUrls, token);
 
+  // This single call now handles tree traversal, sorting, and JSON generation.
+  const { sections, title } = processTree(tree, repoInfoMap, sortOptions);
+
+  const jsonData: JsonOutput = {
+    items: sections,
+    metadata: {
+      last_updated: new Date().toISOString(),
+      // source_repository: metadata.sourceRepository,
+      // source_repository_description: metadata.sourceRepositoryDescription,
+      title,
+    },
+  };
+
   // 3. Modify the AST by sorting lists and adding badges.
   sortLists(tree, repoInfoMap, sortOptions);
   addInfoBadges(tree, repoInfoMap);
@@ -104,6 +155,7 @@ export async function processMarkdownContent(
   return {
     finalContent,
     isChanged: finalContent.trim() !== originalContent.trim(),
+    jsonData,
   };
 }
 
@@ -175,6 +227,7 @@ function applyTextReplacements(
 
   return processedContent;
 }
+
 function collectGitHubLinks(tree: Root): Set<string> {
   const urls = new Set<string>();
   visit(tree, 'link', (node: Link) => {
@@ -211,7 +264,6 @@ function findFirstGitHubLink(node: Parent): string | undefined {
   });
   return linkUrl;
 }
-
 function fixRelativeLinks(tree: Root, relativeLinkPrefix: string) {
   if (!relativeLinkPrefix) {
     return;
@@ -235,6 +287,169 @@ function formatDate(isoString: null | string): string {
     return '';
   }
   return new Date(isoString).toISOString().split('T')[0];
+}
+
+function getNodeText(node: Parent | Root): string {
+  let text = '';
+  visit(node, 'text', (textNode: Text) => {
+    text += textNode.value;
+  });
+  return text.replace(/\s\s+/g, ' ').trim();
+}
+
+function processListRecursively(
+  listNode: List,
+  repoInfoMap: Map<string, RepoInfoDetails>,
+  sortOptions: SortOptions,
+): JsonItem[] {
+  const itemsWithGitHubLinks = listNode.children.filter(
+    item => !!findFirstGitHubLink(item),
+  );
+  if (itemsWithGitHubLinks.length < 2) {
+    return [];
+  }
+
+  const processedItems: ProcessedListItem[] = [];
+  const originalOrderJsonItems: JsonItem[] = [];
+
+  for (const itemNode of listNode.children) {
+    const githubUrl = findFirstGitHubLink(itemNode);
+    const repoInfo = githubUrl ? (repoInfoMap.get(githubUrl) ?? null) : null;
+
+    const nestedLists = itemNode.children.filter(
+      (child): child is List => child.type === 'list',
+    );
+    const childrenJson = nestedLists.flatMap(nestedList =>
+      processListRecursively(nestedList, repoInfoMap, sortOptions),
+    );
+
+    let title = '';
+    let description = '';
+    const paragraph = itemNode.children.find(p => p.type === 'paragraph');
+    if (paragraph) {
+      const linkNode = paragraph.children.find(
+        (c): c is Link => c.type === 'link',
+      );
+      title = linkNode ? getNodeText(linkNode) : getNodeText(paragraph);
+      description = paragraph.children
+        .filter((c): c is Text => c.type === 'text')
+        .map(t => t.value)
+        .join('')
+        .replace(/^[\s\W]+/, '')
+        .trim();
+    }
+
+    const jsonData: JsonItem = {
+      children: childrenJson,
+      description: description || null,
+      title,
+    };
+    if (repoInfo && githubUrl) {
+      const repoId = parseGitHubUrl(githubUrl);
+      if (repoId) {
+        jsonData.repo_info = {
+          archived: repoInfo.archived,
+          language: repoInfo.language,
+          last_commit: repoInfo.pushed_at,
+          owner: repoId.owner,
+          repo: repoId.repo,
+          stars: repoInfo.stargazers_count,
+        };
+      }
+    }
+
+    originalOrderJsonItems.push(jsonData);
+    processedItems.push({ node: itemNode, repoInfo });
+  }
+
+  if (sortOptions.by) {
+    processedItems.sort((a, b) => {
+      if (!a.repoInfo) {
+        return 1;
+      }
+      if (!b.repoInfo) {
+        return -1;
+      }
+      if (sortOptions.by === 'stars') {
+        return b.repoInfo.stargazers_count - a.repoInfo.stargazers_count;
+      }
+      if (sortOptions.by === 'last_commit') {
+        const dateA = a.repoInfo.pushed_at
+          ? new Date(a.repoInfo.pushed_at).getTime()
+          : 0;
+        const dateB = b.repoInfo.pushed_at
+          ? new Date(b.repoInfo.pushed_at).getTime()
+          : 0;
+        return dateB - dateA;
+      }
+      return 0;
+    });
+  }
+
+  listNode.children = processedItems.map(p => p.node);
+  return originalOrderJsonItems;
+}
+
+/**
+ * Main orchestrator that walks the document to build sections based on headings.
+ */
+function processTree(
+  tree: Root,
+  repoInfoMap: Map<string, RepoInfoDetails>,
+  sortOptions: SortOptions,
+): { sections: JsonSection[]; title: string } {
+  let documentTitle = 'Untitled';
+  visit(tree, 'heading', (node: Heading) => {
+    if (node.depth === 1) {
+      documentTitle = getNodeText(node);
+    }
+  });
+
+  const sections: JsonSection[] = [];
+  let currentSection: JsonSection | null = null;
+
+  for (const node of tree.children) {
+    // Headings (H2, H3, etc.) start a new section
+    if (node.type === 'heading' && node.depth > 1) {
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+      currentSection = {
+        description: '',
+        items: [],
+        title: getNodeText(node),
+      };
+    } else if (currentSection) {
+      // If we are in a section, look for paragraphs or lists
+      if (node.type === 'paragraph') {
+        const paragraphText = getNodeText(node);
+        // Avoid adding boilerplate "back to top" links to description
+        if (!paragraphText.includes('back to top')) {
+          if (currentSection.description) {
+            currentSection.description += `\n${paragraphText}`;
+          } else {
+            currentSection.description = paragraphText;
+          }
+        }
+      } else if (node.type === 'list') {
+        // A list is the main content of a section
+        const items = processListRecursively(node, repoInfoMap, sortOptions);
+        // Only add the section if the list was valid and produced items
+        if (items.length > 0) {
+          currentSection.items = items;
+          sections.push(currentSection);
+        }
+        currentSection = null; // Reset after processing a list
+      }
+    }
+  }
+
+  // Add any final section that was not followed by a list
+  if (currentSection) {
+    sections.push(currentSection);
+  }
+
+  return { sections, title: documentTitle };
 }
 
 function serializeAst(tree: Root, originalContent: string): string {

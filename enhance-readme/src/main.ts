@@ -1,5 +1,6 @@
 import * as core from '@actions/core';
 import * as fs from 'fs/promises';
+import * as path from 'path';
 
 import {
   processMarkdownContent,
@@ -47,6 +48,7 @@ function parseReplacementRules(
 
 async function processMarkdownFile(
   filePath: string,
+  jsonOutputDir: string,
   token: string,
   rules?: ReplacementRule[],
   sortOptions?: SortOptions,
@@ -55,13 +57,29 @@ async function processMarkdownFile(
   core.info(`Processing file: ${filePath}`);
   try {
     const originalContent = await fs.readFile(filePath, 'utf-8');
-    const { finalContent, isChanged } = await processMarkdownContent(
+    const { finalContent, isChanged, jsonData } = await processMarkdownContent(
       originalContent,
       token,
       rules,
       sortOptions,
       relativeLinkPrefix,
     );
+
+    if (jsonOutputDir) {
+      const baseName = path.basename(filePath, path.extname(filePath));
+      const jsonFileName = `${baseName}.json`;
+      const fullJsonPath = path.join(jsonOutputDir, jsonFileName);
+
+      await fs.mkdir(jsonOutputDir, { recursive: true });
+      await fs.writeFile(
+        fullJsonPath,
+        JSON.stringify(jsonData, null, 2),
+        'utf-8',
+      );
+      core.info(
+        `Successfully generated hierarchical JSON file at ${fullJsonPath}`,
+      );
+    }
 
     if (isChanged) {
       await fs.writeFile(filePath, finalContent, 'utf-8');
@@ -87,6 +105,7 @@ async function run(): Promise<void> {
     const markdownFilesRaw = core.getInput('markdown_files', {
       required: true,
     });
+    const jsonOutputDir = core.getInput('json_output_dir');
     const findAndReplaceRaw = core.getInput('find_and_replace');
     const regexFindAndReplaceRaw = core.getInput('regex_find_and_replace');
     const disableBranding = core.getInput('disable_branding') === 'true';
@@ -119,6 +138,7 @@ async function run(): Promise<void> {
       await processMarkdownFile(
         filePath,
         token,
+        jsonOutputDir,
         rules,
         sortOptions,
         relativeLinkPrefix,

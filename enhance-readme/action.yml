@@ -13,7 +13,11 @@ inputs:
   working_directory:
     description: 'The directory where the markdown files are located and where the action should operate.'
     required: false
-    default: '.' # GitHub workspace root
+    default: '.'
+  json_output_dir:
+    description: 'A directory path to save the generated JSON files. Filenames are derived from the markdown files (e.g., README.md -> README.json).'
+    required: false
+    default: './json'
   find_and_replace:
     description: |
       Multiline list of literal string replacements.
@@ -48,6 +52,7 @@ runs:
     INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
     INPUT_MARKDOWN_FILES: ${{ inputs.markdown_files }}
     INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
+    INPUT_JSON_OUTPUT_DIR: ${{ inputs.json_output_dir }}
     INPUT_FIND_AND_REPLACE: ${{ inputs.find_and_replace }}
     INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}
     INPUT_DISABLE_BRANDING: ${{ inputs.disable_branding }}
