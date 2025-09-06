@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.1](https://github.com/v1nvn/enhansome/compare/v1.7.0...v1.7.1) (2025-09-06)
+
+
+### Bug Fixes
+
+* add github action dep ([f0ebe0e](https://github.com/v1nvn/enhansome/commit/f0ebe0e8ef4efa3756a1c55531f94f675637257d))
+
 ## [1.7.0](https://github.com/v1nvn/enhansome/compare/v1.6.1...v1.7.0) (2025-09-06)
 
 
