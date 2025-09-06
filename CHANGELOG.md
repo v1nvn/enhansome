@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.7.0](https://github.com/v1nvn/enhansome/compare/v1.6.1...v1.7.0) (2025-09-06)
+
+
+### Features
+
+* lint config and fixes ([95ef5a7](https://github.com/v1nvn/enhansome/commit/95ef5a71bcd17e2a015ef0e2ab298d3012ec3e11))
+* structured json output ([4548516](https://github.com/v1nvn/enhansome/commit/454851695d84fe67e89a0538ae456581c575e862))
+
+
+### Bug Fixes
+
+* include source info in json ([e7205a3](https://github.com/v1nvn/enhansome/commit/e7205a3c66e35c4221650ab34420551f3456f103))
+* move file operations out of markdown ([c9fbb84](https://github.com/v1nvn/enhansome/commit/c9fbb84a4c4add1b72e18d3cd2efd5047e7be05a))
+* move to single file support only ([d9cfd06](https://github.com/v1nvn/enhansome/commit/d9cfd0616640b7107a8b0ad6b47c1e8ac8fa6f3b))
+* stricter eslint ([43f8cf9](https://github.com/v1nvn/enhansome/commit/43f8cf91ad111cda45168473ee4df16026463f14))
+
 ## [1.6.1](https://github.com/v1nvn/enhansome/compare/v1.6.0...v1.6.1) (2025-07-19)
 
 
