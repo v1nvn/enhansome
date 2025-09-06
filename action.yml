@@ -18,8 +18,8 @@ inputs:
     description: 'Path in the main repository where submodule content should be synced to (e.g., "." for root).'
     required: false
     default: '.'
-  files_to_enhance:
-    description: 'Space-separated list of markdown file paths (relative to content_destination_path) to enhance with stars.'
+  file_to_enhance:
+    description: 'Path to the markdown file (relative to content_destination_path) to enhance with stars.'
     required: false
     default: 'README.md'
   items_to_sync:
@@ -126,12 +126,12 @@ runs:
         items_to_sync: ${{ inputs.items_to_sync }}
         extra_rsync_args: ${{ inputs.extra_rsync_args }}
 
-    - name: Enhance Markdown Files
-      id: enhance_files
+    - name: Enhance Markdown File
+      id: enhance_file
       uses: ./.github/actions/enhansome/enhance-readme
       with:
         github_token: ${{ inputs.github_token }}
-        markdown_files: ${{ inputs.files_to_enhance }}
+        markdown_file: ${{ inputs.file_to_enhance }}
         working_directory: ${{ inputs.content_destination_path }}
         find_and_replace: ${{ inputs.find_and_replace }}
         regex_find_and_replace: ${{ inputs.regex_find_and_replace }}

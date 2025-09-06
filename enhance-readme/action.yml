@@ -1,23 +1,26 @@
 name: 'Enhance Markdown with GitHub Stars'
-description: 'Parses markdown files, finds GitHub repo links, and appends star counts.'
+description: 'Parses a markdown file, finds GitHub repo links, and appends star counts.'
 author: 'v1nvn'
 
 inputs:
   github_token:
     description: 'GitHub token for API calls.'
     required: true
-  markdown_files:
-    description: 'Space-separated list of markdown file paths to process (relative to working_directory).'
+  markdown_file:
+    description: 'Path to the markdown file to process (relative to working_directory).'
     required: true
     default: 'README.md'
   working_directory:
-    description: 'The directory where the markdown files are located and where the action should operate.'
+    description: 'The directory where the markdown file is located and where the action should operate.'
     required: false
     default: '.'
-  json_output_dir:
-    description: 'A directory path to save the generated JSON files. Filenames are derived from the markdown files (e.g., README.md -> README.json).'
+  json_output_file:
+    description: |
+      Path to save the generated JSON file.
+      If set to 'auto', the filename is derived from the markdown file (e.g., README.md -> README.json).
+      If empty, no JSON file is generated.
     required: false
-    default: './json'
+    default: 'auto'
   find_and_replace:
     description: |
       Multiline list of literal string replacements.
@@ -50,13 +53,11 @@ runs:
   image: 'Dockerfile'
   env:
     INPUT_GITHUB_TOKEN: ${{ inputs.github_token }}
-    INPUT_MARKDOWN_FILES: ${{ inputs.markdown_files }}
+    INPUT_MARKDOWN_FILE: ${{ inputs.markdown_file }}
     INPUT_WORKING_DIRECTORY: ${{ inputs.working_directory }}
-    INPUT_JSON_OUTPUT_DIR: ${{ inputs.json_output_dir }}
+    INPUT_JSON_OUTPUT_FILE: ${{ inputs.json_output_file }}
     INPUT_FIND_AND_REPLACE: ${{ inputs.find_and_replace }}
     INPUT_REGEX_FIND_AND_REPLACE: ${{ inputs.regex_find_and_replace }}
     INPUT_DISABLE_BRANDING: ${{ inputs.disable_branding }}
     INPUT_SORT_BY: ${{ inputs.sort_by }}
     INPUT_RELATIVE_LINK_PREFIX: ${{ inputs.relative_link_prefix }}
-
-

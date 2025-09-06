@@ -48,8 +48,8 @@ function parseReplacementRules(
 
 async function processMarkdownFile(
   filePath: string,
-  jsonOutputDir: string,
   token: string,
+  jsonOutputFile: string,
   rules?: ReplacementRule[],
   sortOptions?: SortOptions,
   relativeLinkPrefix?: string,
@@ -65,12 +65,19 @@ async function processMarkdownFile(
       relativeLinkPrefix,
     );
 
-    if (jsonOutputDir) {
-      const baseName = path.basename(filePath, path.extname(filePath));
-      const jsonFileName = `${baseName}.json`;
-      const fullJsonPath = path.join(jsonOutputDir, jsonFileName);
+    if (jsonOutputFile) {
+      let fullJsonPath: string;
 
-      await fs.mkdir(jsonOutputDir, { recursive: true });
+      if (jsonOutputFile.toLowerCase() === 'auto') {
+        const baseName = path.basename(filePath, path.extname(filePath));
+        fullJsonPath = `${baseName}.json`;
+      } else {
+        fullJsonPath = jsonOutputFile;
+      }
+
+      const outputDir = path.dirname(fullJsonPath);
+      await fs.mkdir(outputDir, { recursive: true });
+
       await fs.writeFile(
         fullJsonPath,
         JSON.stringify(jsonData, null, 2),
@@ -102,19 +109,18 @@ async function processMarkdownFile(
 async function run(): Promise<void> {
   try {
     const token = core.getInput('github_token', { required: true });
-    const markdownFilesRaw = core.getInput('markdown_files', {
+    const markdownFile = core.getInput('markdown_file', {
       required: true,
     });
-    const jsonOutputDir = core.getInput('json_output_dir');
+    const jsonOutputFile = core.getInput('json_output_file');
     const findAndReplaceRaw = core.getInput('find_and_replace');
     const regexFindAndReplaceRaw = core.getInput('regex_find_and_replace');
     const disableBranding = core.getInput('disable_branding') === 'true';
     const sortBy = core.getInput('sort_by') as '' | 'last_commit' | 'stars';
     const relativeLinkPrefix = core.getInput('relative_link_prefix');
 
-    const filePaths = markdownFilesRaw.split(/\s+/).filter(Boolean);
-    if (filePaths.length === 0) {
-      core.warning('No markdown files specified to process.');
+    if (!markdownFile) {
+      core.warning('No markdown file specified to process.');
       return;
     }
 
@@ -133,17 +139,15 @@ async function run(): Promise<void> {
       minLinks: 2,
     };
 
-    core.info(`Markdown files to process: ${filePaths.join(', ')}`);
-    for (const filePath of filePaths) {
-      await processMarkdownFile(
-        filePath,
-        token,
-        jsonOutputDir,
-        rules,
-        sortOptions,
-        relativeLinkPrefix,
-      );
-    }
+    core.info(`Markdown file to process: ${markdownFile}`);
+    await processMarkdownFile(
+      markdownFile,
+      token,
+      jsonOutputFile,
+      rules,
+      sortOptions,
+      relativeLinkPrefix,
+    );
 
     core.info('Process finished.');
   } catch (error: unknown) {
