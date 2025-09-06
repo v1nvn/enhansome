@@ -12,6 +12,8 @@ export interface EnhanceOptions {
   regexFindAndReplaceRaw?: string;
   relativeLinkPrefix?: string;
   sortBy?: '' | 'last_commit' | 'stars';
+  sourceRepository?: string;
+  sourceRepositoryDescription?: string;
   token: string;
 }
 
@@ -29,6 +31,8 @@ export async function enhance(options: EnhanceOptions): Promise<EnhanceResult> {
     regexFindAndReplaceRaw = '',
     relativeLinkPrefix = '',
     sortBy = '',
+    sourceRepository,
+    sourceRepositoryDescription,
     token,
   } = options;
 
@@ -52,6 +56,8 @@ export async function enhance(options: EnhanceOptions): Promise<EnhanceResult> {
     rules,
     sortOptions,
     relativeLinkPrefix,
+    sourceRepository,
+    sourceRepositoryDescription,
   );
 
   return {

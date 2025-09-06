@@ -52,8 +52,8 @@ interface JsonItem {
 
 interface JsonMetadata {
   last_updated: string;
-  // source_repository: null | string;
-  // source_repository_description: null | string;
+  source_repository: null | string;
+  source_repository_description: null | string;
   title: string;
 }
 
@@ -116,6 +116,8 @@ export async function processMarkdownContent(
   replacements: ReplacementRule[] = [],
   sortOptions: SortOptions = { by: '', minLinks: 2 },
   relativeLinkPrefix = '',
+  sourceRepository?: string,
+  sourceRepositoryDescription?: string,
 ): Promise<{ finalContent: string; isChanged: boolean; jsonData: JsonOutput }> {
   const contentAfterReplacements = applyTextReplacements(
     originalContent,
@@ -138,8 +140,8 @@ export async function processMarkdownContent(
     items: sections,
     metadata: {
       last_updated: new Date().toISOString(),
-      // source_repository: metadata.sourceRepository,
-      // source_repository_description: metadata.sourceRepositoryDescription,
+      source_repository: sourceRepository ?? null,
+      source_repository_description: sourceRepositoryDescription ?? null,
       title,
     },
   };

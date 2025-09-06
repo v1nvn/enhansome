@@ -16,9 +16,9 @@ inputs:
     default: '.'
   json_output_file:
     description: |
-      Path to save the generated JSON file.
+      Path to save the generated JSON file in the source repository.
       If set to 'auto', the filename is derived from the markdown file (e.g., README.md -> README.json).
-      If empty, no JSON file is generated.
+      If empty, no JSON file is generated in the source repository.
     required: false
     default: 'auto'
   find_and_replace:
@@ -44,9 +44,6 @@ inputs:
     description: 'A path prefix to prepend to all relative links. Useful when content is moved from a subdirectory.'
     required: false
     default: ''
-
-
-
 
 runs:
   using: 'docker'

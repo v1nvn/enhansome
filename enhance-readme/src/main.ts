@@ -1,4 +1,5 @@
 import * as core from '@actions/core';
+import * as github from '@actions/github';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 
@@ -29,6 +30,12 @@ async function run(): Promise<void> {
     const originalContent = await fs.readFile(markdownFile, 'utf-8');
 
     // 3. Call the pure orchestrator function with all the data
+    const { repo } = github.context;
+    const sourceRepository = `${repo.owner}/${repo.repo}`;
+    const sourceRepositoryDescription =
+      (github.context.payload.repository?.description as string | undefined) ??
+      '';
+
     const result = await enhance({
       content: originalContent,
       disableBranding,
@@ -36,10 +43,12 @@ async function run(): Promise<void> {
       regexFindAndReplaceRaw,
       relativeLinkPrefix,
       sortBy,
+      sourceRepository,
+      sourceRepositoryDescription,
       token,
     });
 
-    // 4. Handle the results (write files)
+    // 4. Optionally, save a copy of the JSON data based on user's input
     if (jsonOutputFile) {
       let fullJsonPath: string;
 
@@ -62,10 +71,11 @@ async function run(): Promise<void> {
         'utf-8',
       );
       core.info(
-        `Successfully generated hierarchical JSON file at ${fullJsonPath}`,
+        `Successfully generated user-requested JSON file at ${fullJsonPath}`,
       );
     }
 
+    // 5. Write back the updated markdown file if it changed
     if (result.isChanged) {
       await fs.writeFile(markdownFile, result.finalContent, 'utf-8');
       core.info(`Successfully updated ${markdownFile}.`);
