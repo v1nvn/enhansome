@@ -301,11 +301,12 @@ function processListRecursively(
   listNode: List,
   repoInfoMap: Map<string, RepoInfoDetails>,
   sortOptions: SortOptions,
+  isNested = false,
 ): JsonItem[] {
   const itemsWithGitHubLinks = listNode.children.filter(
     item => !!findFirstGitHubLink(item),
   );
-  if (itemsWithGitHubLinks.length < 2) {
+  if (!isNested && itemsWithGitHubLinks.length < sortOptions.minLinks) {
     return [];
   }
 
@@ -320,7 +321,7 @@ function processListRecursively(
       (child): child is List => child.type === 'list',
     );
     const childrenJson = nestedLists.flatMap(nestedList =>
-      processListRecursively(nestedList, repoInfoMap, sortOptions),
+      processListRecursively(nestedList, repoInfoMap, sortOptions, true),
     );
 
     let title = '';
@@ -432,7 +433,7 @@ function processTree(
           }
         }
       } else if (node.type === 'list') {
-        // A list is the main content of a section
+        // A list is the main content of a section. The `isNested` flag defaults to false here.
         const items = processListRecursively(node, repoInfoMap, sortOptions);
         // Only add the section if the list was valid and produced items
         if (items.length > 0) {
