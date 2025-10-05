@@ -36,7 +36,7 @@ prompt DEST_DIR "Enter destination directory to clone into" "$HOME/git/${REPO_NA
 
 # --- Create GitHub repo ---
 echo "🚀 Creating GitHub repo: $REPO_NAME..."
-gh repo create "$REPO_NAME" --public --confirm || error "Failed to create GitHub repo"
+gh repo create "$REPO_NAME" --public || error "Failed to create GitHub repo"
 
 # --- Get canonical repo URL ---
 REPO_URL=$(gh repo view "$REPO_NAME" --json url -q .url) || error "Failed to get repo URL"

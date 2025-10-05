@@ -22,13 +22,6 @@ inputs:
     description: 'Path to the markdown file (relative to content_destination_path) to enhance with stars.'
     required: false
     default: 'README.md'
-  items_to_sync:
-    description: |
-      Space-separated list of files and/or directories to sync from the source_path.
-      Paths should be relative to the source_path.
-      Example: "README.md images/logo.png docs/"
-    required: false
-    default: 'README.md'
   extra_rsync_args:
     description: 'Any extra arguments to pass to rsync for the sync-submodule-content step.'
     required: false
@@ -123,7 +116,7 @@ runs:
       with:
         source_path: ${{ inputs.submodule_path }}
         destination_path: ${{ inputs.content_destination_path }}
-        items_to_sync: ${{ inputs.items_to_sync }}
+        items_to_sync: ${{ inputs.file_to_enhance }}
         extra_rsync_args: ${{ inputs.extra_rsync_args }}
 
     - name: Enhance Markdown File
