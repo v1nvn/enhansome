@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.2](https://github.com/v1nvn/enhansome/compare/v1.7.1...v1.7.2) (2025-10-05)
+
+
+### Bug Fixes
+
+* remove items_to_sync input from main action ([fc8ad6b](https://github.com/v1nvn/enhansome/commit/fc8ad6b72672e5af7e2a476f8d2dbcbe99b8788e))
+
 ## [1.7.1](https://github.com/v1nvn/enhansome/compare/v1.7.0...v1.7.1) (2025-09-06)
 
 
