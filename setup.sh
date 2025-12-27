@@ -262,7 +262,8 @@ prompt() {
 # ============================================================================
 
 # If sourced (for testing), don't execute main logic
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+# BASH_SOURCE may not be set when script is piped to bash -c
+if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
 
   # Set up error trap
   trap 'cleanup_on_error' ERR
