@@ -195,6 +195,22 @@ transform_to_enhansome_name() {
   echo "${name//awesome/enhansome}"
 }
 
+ensure_enhansome_prefix() {
+  local repo=$1
+  local repo_name
+  local repo_owner
+
+  repo_name=$(extract_repo_name "$repo")
+  repo_owner=$(extract_repo_owner "$repo")
+
+  # If repo name doesn't contain "awesome", prefix with "enhansome-"
+  if [[ ! "$repo_name" =~ awesome ]]; then
+    echo "${repo_owner}/enhansome-${repo_name}"
+  else
+    echo "$repo"
+  fi
+}
+
 is_gh_authenticated() {
   gh auth status >/dev/null 2>&1
 }
@@ -279,7 +295,7 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
 
   # Get GitHub authenticated username
   AUTH_USER=$(get_gh_username) || exit 1
-  DEFAULT_REPO_NAME="${AUTH_USER}/${ENHANSOME_REPO}"
+  DEFAULT_REPO_NAME=$(ensure_enhansome_prefix "${AUTH_USER}/${ENHANSOME_REPO}")
 
   prompt REPO_NAME "Enter name for new GitHub repo" "$DEFAULT_REPO_NAME" "validate_repo_format"
 
@@ -357,9 +373,9 @@ EOF
   log "📁 Adding submodule $SUBMODULE_REPO under ./origin..."
   execute "Add submodule" git submodule add "https://github.com/$SUBMODULE_REPO.git" origin || exit 1
 
-  # Prompt for registry discovery
+  # Prompt for registry discovery (defaults to yes)
   echo ""
-  read -rp "Make this list discoverable to the Enhansome Registry? (Y/n): " MAKE_DISCOVERABLE
+  read -rp "Make this list discoverable to the Enhansome Registry? [Y/n]: " MAKE_DISCOVERABLE
   MAKE_DISCOVERABLE="${MAKE_DISCOVERABLE:-Y}"
 
   if [[ "$MAKE_DISCOVERABLE" =~ ^[Yy]$ ]]; then
@@ -367,8 +383,8 @@ EOF
 
     cat > .enhansome.jsonc <<'EOF'
 {
-  // Enable registry indexing for this Enhansome-enhanced repository
-  "registryIndexing": true
+  // Make this Enhansome-enhanced repository discoverable in the registry
+  "discoverable": true
 }
 EOF
     log "✅ Created .enhansome.jsonc"

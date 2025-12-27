@@ -120,6 +120,41 @@ function test_transform_to_enhansome_name_with_multiple_awesome() {
   assert_equals "enhansome-enhansome-go" "$result"
 }
 
+function test_ensure_enhansome_prefix_with_awesome_in_name() {
+  local result=$(ensure_enhansome_prefix "myuser/awesome-python")
+  assert_equals "myuser/awesome-python" "$result"
+}
+
+function test_ensure_enhansome_prefix_without_awesome() {
+  local result=$(ensure_enhansome_prefix "myuser/mycoolrepo")
+  assert_equals "myuser/enhansome-mycoolrepo" "$result"
+}
+
+function test_ensure_enhansome_prefix_with_enhansome_already_present() {
+  local result=$(ensure_enhansome_prefix "myuser/enhansome-python")
+  assert_equals "myuser/enhansome-enhansome-python" "$result"
+}
+
+function test_ensure_enhansome_prefix_with_awesome_at_start() {
+  local result=$(ensure_enhansome_prefix "owner/awesome-go")
+  assert_equals "owner/awesome-go" "$result"
+}
+
+function test_ensure_enhansome_prefix_with_awesome_in_middle() {
+  local result=$(ensure_enhansome_prefix "owner/my-awesome-list")
+  assert_equals "owner/my-awesome-list" "$result"
+}
+
+function test_ensure_enhansome_prefix_without_awesome_simple_name() {
+  local result=$(ensure_enhansome_prefix "owner/repo")
+  assert_equals "owner/enhansome-repo" "$result"
+}
+
+function test_ensure_enhansome_prefix_with_dashes() {
+  local result=$(ensure_enhansome_prefix "my-user/my-repo")
+  assert_equals "my-user/enhansome-my-repo" "$result"
+}
+
 function test_check_prerequisites_with_existing_commands() {
   assert_successful_code "$(check_prerequisites "bash" "echo")"
 }
