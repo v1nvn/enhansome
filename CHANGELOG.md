@@ -1,5 +1,19 @@
 # Changelog
 
+## [1.8.0](https://github.com/v1nvn/enhansome/compare/v1.7.2...v1.8.0) (2025-12-27)
+
+
+### Features
+
+* setup.sh testing ([f340639](https://github.com/v1nvn/enhansome/commit/f340639a7a33bf4189f2a6c41c78c3bb7490f232))
+
+
+### Bug Fixes
+
+* handle unset BASH_SOURCE when script is piped to bash -c ([373b4fe](https://github.com/v1nvn/enhansome/commit/373b4fea1ed9d52533d8b93f463d6574a7ff6fb5))
+* rename registryIndexing to discoverable ([b449be8](https://github.com/v1nvn/enhansome/commit/b449be828a4805f2c52b29652d86be45031ca353))
+* tests ([679a81a](https://github.com/v1nvn/enhansome/commit/679a81a430620d2003ff82401d85ad47e4129948))
+
 ## [1.7.2](https://github.com/v1nvn/enhansome/compare/v1.7.1...v1.7.2) (2025-10-05)
 
 
