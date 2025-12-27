@@ -21,6 +21,7 @@ set -euo pipefail
 # ============================================================================
 
 # --- Configuration ---
+# shellcheck disable=SC2034  # Used for version tracking/debugging
 SCRIPT_VERSION="1.0.0"
 DRY_RUN="${DRY_RUN:-false}"
 VERBOSE="${VERBOSE:-false}"
@@ -272,7 +273,6 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
   # Get submodule repo
   prompt SUBMODULE_REPO "Enter submodule repo (format: owner/repo)" "avelino/awesome-go" "validate_repo_format"
 
-  SUBMODULE_OWNER=$(extract_repo_owner "$SUBMODULE_REPO")
   SUBMODULE_NAME=$(extract_repo_name "$SUBMODULE_REPO")
   ENHANSOME_REPO=$(transform_to_enhansome_name "$SUBMODULE_NAME")
 

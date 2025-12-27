@@ -43,6 +43,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           curl -s https://bashunit.typeddevs.com/install.sh | bash
+          echo "$PWD/lib" >> $GITHUB_PATH
 
       - name: Install bashunit (macOS)
         if: runner.os == 'macOS'
@@ -70,6 +71,7 @@ jobs:
       - name: Install bashunit
         run: |
           curl -s https://bashunit.typeddevs.com/install.sh | bash
+          echo "$PWD/lib" >> $GITHUB_PATH
 
       - name: Test dry-run mode
         run: |
@@ -111,6 +113,7 @@ jobs:
       - name: Install bashunit
         run: |
           curl -s https://bashunit.typeddevs.com/install.sh | bash
+          echo "$PWD/lib" >> $GITHUB_PATH
 
       - name: Run tests and generate report
         run: |
@@ -139,7 +142,7 @@ jobs:
           docker run --rm -v $PWD:/workspace -w /workspace alpine:latest sh -c '
             apk add --no-cache bash git curl github-cli
             curl -s https://bashunit.typeddevs.com/install.sh | bash
-            bashunit tests/
+            ./lib/bashunit tests/
           '
 
   summary:

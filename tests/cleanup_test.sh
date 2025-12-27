@@ -10,8 +10,8 @@ function test_cleanup_on_error_with_cleanup_disabled() {
   CLEANUP_ON_ERROR="false"
   local result
   result=$(cleanup_on_error 2>&1)
-  assert_contains "$result" "Cleanup disabled"
-  assert_contains "$result" "Manual cleanup may be required"
+  assert_contains "Cleanup disabled" "$result"
+  assert_contains "Manual cleanup may be required" "$result"
   CLEANUP_ON_ERROR="true"
 }
 
@@ -22,8 +22,8 @@ function test_cleanup_on_error_with_no_resources() {
 
   local result
   result=$(cleanup_on_error 2>&1)
-  assert_contains "$result" "Cleaning up after error"
-  assert_contains "$result" "Cleanup completed successfully"
+  assert_contains "Cleaning up after error" "$result"
+  assert_contains "Cleanup completed successfully" "$result"
 }
 
 function test_cleanup_on_error_removes_directory() {
@@ -61,7 +61,7 @@ function test_execute_in_dry_run_mode() {
   local result
   result=$(execute "Test command" echo "hello")
   # Just check for key text, not emojis
-  assert_matches "$result" ".*DRY RUN.*Would execute.*Test command.*"
+  assert_matches ".*DRY RUN.*Would execute.*Test command.*" "$result"
   DRY_RUN="false"
 }
 
@@ -95,7 +95,7 @@ function test_log_verbose_with_verbose_enabled() {
   local result
   result=$(log_verbose "Debug info" 2>&1)
   # Just check for the text content
-  assert_matches "$result" ".*DEBUG.*Debug info.*"
+  assert_matches ".*DEBUG.*Debug info.*" "$result"
   VERBOSE="false"
 }
 
@@ -109,7 +109,7 @@ function test_log_verbose_with_verbose_disabled() {
 function test_warn_outputs_message() {
   local result
   result=$(warn "Warning message" 2>&1)
-  assert_matches "$result" ".*Warning.*Warning message.*"
+  assert_matches ".*Warning.*Warning message.*" "$result"
 }
 
 function test_error_outputs_message_and_returns_1() {
@@ -117,6 +117,6 @@ function test_error_outputs_message_and_returns_1() {
   result=$(error "Error message" 2>&1)
   local exit_code=$?
 
-  assert_matches "$result" ".*Error.*Error message.*"
+  assert_matches ".*Error.*Error message.*" "$result"
   assert_equals 1 "$exit_code"
 }
