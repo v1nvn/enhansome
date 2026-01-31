@@ -1,4 +1,4 @@
-.PHONY: help test test-parallel test-verbose test-dry-run test-single shellcheck validate clean install act-test act-list act-shellcheck act-tests act-dry-run act-validate format
+.PHONY: help test test-parallel test-single shellcheck validate clean install act-test act-list act-shellcheck act-tests act-dry-run act-validate format
 
 # Default target
 .DEFAULT_GOAL := help
@@ -17,14 +17,6 @@ test: ## Run all tests
 test-parallel: ## Run tests in parallel (faster)
 	@echo "Running tests in parallel..."
 	@bashunit --parallel tests/
-
-test-verbose: ## Run tests with verbose output
-	@echo "Running tests with verbose output..."
-	@VERBOSE=true bashunit tests/
-
-test-dry-run: ## Run tests in dry-run mode
-	@echo "Running tests in dry-run mode..."
-	@DRY_RUN=true bashunit tests/
 
 test-single: ## Run a single test file (usage: make test-single FILE=validation_test.sh)
 	@echo "Running single test: $(FILE)"

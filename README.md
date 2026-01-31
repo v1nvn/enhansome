@@ -37,6 +37,34 @@ bash -c "$(curl -fsSL https://raw.githubusercontent.com/v1nvn/enhansome/main/set
 
 The script will prompt you for the upstream "Awesome List" repository you want to use and the name for your new repository.
 
+#### Setup Script Options
+
+The setup script supports several CLI options to customize its behavior:
+
+```sh
+# Show what would be done without making changes
+bash setup.sh --dry-run
+
+# Show detailed debug output
+bash setup.sh --verbose
+
+# Disable automatic cleanup on errors
+bash setup.sh --no-cleanup
+
+# Combine multiple options
+bash setup.sh --dry-run --verbose
+
+# Show help message
+bash setup.sh --help
+```
+
+**Available Options:**
+
+- `--dry-run` - Preview all actions without executing them
+- `--verbose` - Display detailed debug information
+- `--no-cleanup` - Keep created resources even if setup fails
+- `--help` - Display usage information and exit
+
 ### Manual Setup Walkthrough
 
 Follow these steps if you prefer to set up your repository manually.
@@ -128,9 +156,9 @@ Create a workflow file to automate the enhancement process.
 
           - name: Run Awesome List Enhancer
             uses: v1nvn/enhansome@v1 # Use the latest major version
-            with:
-              # This token is required for fetching star counts from the GitHub API.
-              github_token: ${{ secrets.GITHUB_TOKEN }}
+            # No inputs required - GITHUB_TOKEN is used by default
+            # with:
+            #   github_token: ${{ secrets.GITHUB_TOKEN }}  # Optional: custom token
     ```
 
 #### Step 4: Push and Verify
@@ -151,17 +179,24 @@ Your setup is complete\! The action will now run automatically on schedule. To r
 
 | Input | Description | Required | Default |
 |---|---|:---:|---|
-| `github_token` | Token for GitHub API calls. `secrets.GITHUB_TOKEN` is recommended. | **`true`** | |
-| `submodule_path` | The local path to the Git submodule. | `false` | `origin` |
-| `content_destination_path` | The destination path in your repo where submodule content will be synced. | `false` | `.` (root) |
-| `files_to_enhance` | A space-separated list of markdown files to enhance with star badges. | `false` | `README.md` |
-| `items_to_sync` | Space-separated list of files/directories to sync from the submodule. | `false` | `README.md` |
-| `extra_rsync_args` | Any extra arguments to pass to the `rsync` command. | `false` | |
-| `do_commit` | Set to `'true'` to automatically commit changes. | `false` | `'true'` |
-| `commit_message` | The commit message to use for the update. | `false` | `docs(enhance): ✨ Auto-update awesome list` |
-| `commit_user_name` | The git user name for the commit. | `false` | `Enhansome Bot` |
-| `commit_user_email` | The git user email for the commit. | `false` | `actions-bot@...` |
-| `commit_branch` | The branch to commit the changes to. | `false` | The current branch |
+| `github_token` | GitHub token for fetching star counts and committing. Use `secrets.GITHUB_TOKEN` which is automatically available. | `false` | `${{ secrets.GITHUB_TOKEN }}` |
+| `submodule_path` | Path to the submodule directory within the main repository. | `false` | `origin` |
+| `content_destination_path` | Path in the main repository where submodule content should be synced to (e.g., "." for root). | `false` | `.` |
+| `file_to_enhance` | Path to the markdown file (relative to content_destination_path) to enhance with stars. | `false` | `README.md` |
+| `extra_rsync_args` | Any extra arguments to pass to rsync for the sync-submodule-content step. | `false` | `''` |
+| `find_and_replace` | Multiline list of literal string replacements for the enhancement step. Each line should be in the format: `find_string:::replace_string`. | `false` | |
+| `regex_find_and_replace` | Multiline list of regex-based replacements for the enhancement step. Each line should be in the format: `pattern:::replacement_string`. | `false` | |
+| `disable_branding` | Set to `'true'` to disable the default behavior of appending ' with stars' to Awesome list titles. | `false` | `'false'` |
+| `sort_by` | Sorts lists that meet the threshold. Options: 'stars' or 'last_commit'. Leave empty to disable sorting. | `false` | `'stars'` |
+| `do_commit` | Whether to commit and push changes after enhancement. | `false` | `'true'` |
+| `commit_message` | Commit message for the changes. | `false` | `docs(enhance): ✨ Auto-update list with latest content & stars` |
+| `commit_user_name` | Name for the commit author. | `false` | `Enhansome` |
+| `commit_user_email` | Email for the commit author. | `false` | `actions-bot@users.noreply.github.com` |
+| `commit_author` | Commit author string. Defaults to "commit_user_name <commit_user_email>". | `false` | |
+| `commit_branch` | Branch to commit to. Defaults to the current branch. | `false` | |
+| `commit_file_pattern` | File pattern to add to commit. Defaults to all changes "." | `false` | `.` |
+| `commit_options` | Additional options for git commit (e.g., --no-verify). | `false` | `''` |
+| `push_options` | Additional options for git push (e.g., --force). | `false` | `''` |
 
 -----
 
