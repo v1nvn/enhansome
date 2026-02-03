@@ -9,6 +9,7 @@ export interface EnhanceOptions {
   content: string;
   disableBranding?: boolean;
   findAndReplaceRaw?: string;
+  originalRepository?: string;
   regexFindAndReplaceRaw?: string;
   relativeLinkPrefix?: string;
   sortBy?: '' | 'last_commit' | 'stars';
@@ -28,6 +29,7 @@ export async function enhance(options: EnhanceOptions): Promise<EnhanceResult> {
     content,
     disableBranding = false,
     findAndReplaceRaw = '',
+    originalRepository,
     regexFindAndReplaceRaw = '',
     relativeLinkPrefix = '',
     sortBy = '',
@@ -55,6 +57,7 @@ export async function enhance(options: EnhanceOptions): Promise<EnhanceResult> {
     token,
     rules,
     sortOptions,
+    originalRepository,
     relativeLinkPrefix,
     sourceRepository,
     sourceRepositoryDescription,

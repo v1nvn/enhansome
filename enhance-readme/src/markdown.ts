@@ -52,6 +52,7 @@ interface JsonItem {
 
 interface JsonMetadata {
   last_updated: string;
+  original_repository: null | string;
   source_repository: null | string;
   source_repository_description: null | string;
   title: string;
@@ -115,6 +116,7 @@ export async function processMarkdownContent(
   token: string,
   replacements: ReplacementRule[] = [],
   sortOptions: SortOptions = { by: '', minLinks: 2 },
+  originalRepository?: string,
   relativeLinkPrefix = '',
   sourceRepository?: string,
   sourceRepositoryDescription?: string,
@@ -140,8 +142,10 @@ export async function processMarkdownContent(
     items: sections,
     metadata: {
       last_updated: new Date().toISOString(),
-      source_repository: sourceRepository ?? null,
-      source_repository_description: sourceRepositoryDescription ?? null,
+      original_repository: originalRepository?.trim() ?? null,
+      source_repository: sourceRepository?.trim() ?? null,
+      source_repository_description:
+        sourceRepositoryDescription?.trim() ?? null,
       title,
     },
   };

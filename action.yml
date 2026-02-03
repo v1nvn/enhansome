@@ -131,6 +131,7 @@ runs:
         disable_branding: ${{ inputs.disable_branding }}
         sort_by: ${{ inputs.sort_by }}
         relative_link_prefix: ${{ inputs.submodule_path }}
+        original_repository: ${{ steps.update_submodule.outputs.submodule_owner_repo }}
 
 
 

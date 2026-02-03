@@ -361,4 +361,55 @@ Version: 1.5.0 | Last Updated: TBD
       expect(finalContent).toEqual(expectedContent);
     });
   });
+
+  describe('Original Repository in JSON Metadata', () => {
+    beforeEach(() => {
+      vi.mocked(github.parseGitHubUrl).mockReturnValue(null);
+      vi.mocked(github.getRepoInfo).mockResolvedValue(null);
+    });
+
+    it('should include original_repository in JSON metadata when provided', async () => {
+      const originalContent =
+        '# Awesome Test List\n\n* [Some Repo](https://github.com/user/repo)';
+      const originalRepository = 'jorgebucaran/awsm.fish';
+      const sourceRepository = 'myuser/awsm-with-stars';
+
+      const { jsonData } = await enhance({
+        content: originalContent,
+        originalRepository,
+        sourceRepository,
+        sourceRepositoryDescription: 'Enhanced awesome list',
+        token,
+      });
+
+      expect(jsonData.metadata.original_repository).toBe(originalRepository);
+      expect(jsonData.metadata.source_repository).toBe(sourceRepository);
+      expect(jsonData.metadata.source_repository_description).toBe(
+        'Enhanced awesome list',
+      );
+    });
+
+    it('should set original_repository to null when not provided', async () => {
+      const originalContent = '# Awesome Test List';
+
+      const { jsonData } = await enhance({
+        content: originalContent,
+        token,
+      });
+
+      expect(jsonData.metadata.original_repository).toBeNull();
+    });
+
+    it('should set original_repository to null when empty string is provided', async () => {
+      const originalContent = '# Awesome Test List';
+
+      const { jsonData } = await enhance({
+        content: originalContent,
+        originalRepository: '',
+        token,
+      });
+
+      expect(jsonData.metadata.original_repository).toBeNull();
+    });
+  });
 });

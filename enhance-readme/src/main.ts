@@ -18,6 +18,7 @@ async function run(): Promise<void> {
     const disableBranding = core.getInput('disable_branding') === 'true';
     const sortBy = core.getInput('sort_by') as '' | 'last_commit' | 'stars';
     const relativeLinkPrefix = core.getInput('relative_link_prefix');
+    const originalRepository = core.getInput('original_repository');
 
     if (!markdownFile) {
       core.warning('No markdown file specified to process.');
@@ -40,6 +41,7 @@ async function run(): Promise<void> {
       content: originalContent,
       disableBranding,
       findAndReplaceRaw,
+      originalRepository,
       regexFindAndReplaceRaw,
       relativeLinkPrefix,
       sortBy,

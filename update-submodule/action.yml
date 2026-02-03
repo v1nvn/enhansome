@@ -8,10 +8,16 @@ inputs:
     required: true
     default: 'origin' # A common default name
 
+outputs:
+  submodule_owner_repo:
+    description: 'The submodule repository in owner/repo format (e.g., owner/repo)'
+    value: ${{ steps.update_submodule.outputs.submodule_owner_repo }}
+
 runs:
   using: 'composite'
   steps:
     - name: Update Submodule
+      id: update_submodule
       shell: bash
       run: |
         set -e
@@ -37,8 +43,20 @@ runs:
         git checkout "$DEFAULT_BRANCH"
         git pull origin "$DEFAULT_BRANCH" --ff-only # Fast-forward only pull
         cd ..
+
         # After updating the submodule, its new commit hash needs to be
         # registered in the parent repository.
         # This is usually done by `git add submodule_path` in the parent repo,
         # which the calling workflow will handle before committing.
         echo "Submodule ${{ inputs.submodule_path }} updated. Parent repo should 'git add ${{ inputs.submodule_path }}' to stage changes."
+
+        # Get the submodule's remote URL in owner/repo format
+        cd "${{ inputs.submodule_path }}"
+        SUBMODULE_REMOTE_URL=$(git config --get remote.origin.url)
+        # Extract owner/repo from various URL formats
+        # https://github.com/owner/repo.git -> owner/repo
+        # git@github.com:owner/repo.git -> owner/repo
+        SUBMODULE_OWNER_REPO=$(echo "$SUBMODULE_REMOTE_URL" | sed -E 's|.*github.com[/:]([^/]+/.*)|\1|' | sed 's/\.git$//')
+        cd ..
+        echo "submodule_owner_repo=$SUBMODULE_OWNER_REPO" >> $GITHUB_OUTPUT
+        echo "Submodule repository: $SUBMODULE_OWNER_REPO"
