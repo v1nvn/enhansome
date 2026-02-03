@@ -214,3 +214,150 @@ function test_register_with_registry_dry_run_allowlist_entry() {
 
   DRY_RUN="false"
 }
+
+# ============================================================================
+# Tests for is_awesome_repo_already_enhansomed function
+# ============================================================================
+
+# Helper function to create a mock registry cache with test data
+function setup_mock_registry_cache() {
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  local data_dir="${cache_dir}/data"
+
+  # Create directory structure
+  mkdir -p "$data_dir"
+
+  # Create mock JSON files with original_repository metadata
+  cat > "${data_dir}/test1.json" << 'EOF'
+{
+  "metadata": {
+    "original_repository": "avelino/awesome-go",
+    "source_repository": "test1/enhansome-go"
+  }
+}
+EOF
+
+  cat > "${data_dir}/test2.json" << 'EOF'
+{
+  "metadata": {
+    "original_repository": "sindresorhus/awesome",
+    "source_repository": "test2/enhansome-awesome"
+  }
+}
+EOF
+
+  cat > "${data_dir}/test3.json" << 'EOF'
+{
+  "metadata": {
+    "original_repository": "viatsko/awesome-vscode",
+    "source_repository": "test3/enhansome-vscode"
+  }
+}
+EOF
+
+  # Create a JSON file without original_repository (should be ignored)
+  cat > "${data_dir}/test4.json" << 'EOF'
+{
+  "metadata": {
+    "source_repository": "test4/no-original"
+  }
+}
+EOF
+}
+
+function cleanup_mock_registry_cache() {
+  rm -rf "${CACHE_DIR}/enhansome-registry"
+}
+
+# Test that an existing repo is detected in the list
+function test_is_awesome_repo_already_enhansomed_found() {
+  setup_mock_registry_cache
+
+  if is_awesome_repo_already_enhansomed "avelino/awesome-go"; then
+    local exit_code=0
+  else
+    local exit_code=1
+  fi
+
+  cleanup_mock_registry_cache
+  assert_equals 0 "$exit_code"
+}
+
+# Test that a non-existing repo is not found
+function test_is_awesome_repo_already_enhansomed_not_found() {
+  setup_mock_registry_cache
+
+  if is_awesome_repo_already_enhansomed "unknown/nonexistent-repo"; then
+    local exit_code=1
+  else
+    local exit_code=0
+  fi
+
+  cleanup_mock_registry_cache
+  assert_equals 0 "$exit_code"
+}
+
+# Test partial matching doesn't trigger false positives
+function test_is_awesome_repo_already_enhansomed_partial_match_no_false_positive() {
+  setup_mock_registry_cache
+
+  # "awesome" should NOT match "sindresorhus/awesome" (needs exact match)
+  if is_awesome_repo_already_enhansomed "awesome"; then
+    local exit_code=1
+  else
+    local exit_code=0
+  fi
+
+  cleanup_mock_registry_cache
+  assert_equals 0 "$exit_code"
+}
+
+# Test case sensitivity
+function test_is_awesome_repo_already_enhansomed_case_sensitive() {
+  setup_mock_registry_cache
+
+  # "Avelino/Awesome-Go" should NOT match "avelino/awesome-go"
+  if is_awesome_repo_already_enhansomed "Avelino/Awesome-Go"; then
+    local exit_code=1
+  else
+    local exit_code=0
+  fi
+
+  cleanup_mock_registry_cache
+  assert_equals 0 "$exit_code"
+}
+
+# Test with empty cache directory (valid git repo but no data files)
+function test_is_awesome_repo_already_enhansomed_empty_cache() {
+  # Create a valid git repo structure with empty data directory
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  local data_dir="${cache_dir}/data"
+  rm -rf "$cache_dir"
+  mkdir -p "$data_dir"
+  mkdir -p "${cache_dir}/.git"  # Make it look like a git repo
+
+  # Should not find anything in empty data directory
+  if is_awesome_repo_already_enhansomed "avelino/awesome-go"; then
+    local exit_code=1
+  else
+    local exit_code=0
+  fi
+
+  rm -rf "$cache_dir"
+  assert_equals 0 "$exit_code"
+}
+
+# Test with real registry (git clone works, should find avelino/awesome-go)
+function test_is_awesome_repo_already_enhansomed_real_registry() {
+  # Ensure no local cache exists, so it clones the real registry
+  rm -rf "${CACHE_DIR}/enhansome-registry"
+  local OLD_VERBOSE="$VERBOSE"
+  VERBOSE="false"
+
+  # avelino/awesome-go exists in the real registry
+  is_awesome_repo_already_enhansomed "avelino/awesome-go"
+  local result=$?
+
+  VERBOSE="$OLD_VERBOSE"
+  assert_equals 0 "$result"  # 0 = found
+}

@@ -46,33 +46,6 @@ function test_validate_repo_format_with_spaces() {
   assert_general_error "$(validate_repo_format "owner /repo")"
 }
 
-function test_sanitize_input_removes_newlines() {
-  local input=$'hello\nworld'
-  local result=$(sanitize_input "$input")
-  assert_equals "helloworld" "$result"
-}
-
-function test_sanitize_input_removes_carriage_returns() {
-  local input=$'hello\rworld'
-  local result=$(sanitize_input "$input")
-  assert_equals "helloworld" "$result"
-}
-
-# Note: Null bytes test is skipped because bash strings are null-terminated
-# and cannot contain null bytes. Any input with null bytes will be truncated
-# at the null byte, which is the expected behavior in bash.
-# function test_sanitize_input_removes_null_bytes() {
-#   local input=$'hello\0world'
-#   local result=$(sanitize_input "$input")
-#   assert_equals "helloworld" "$result"
-# }
-
-function test_sanitize_input_preserves_valid_chars() {
-  local input="owner/repo-name_123"
-  local result=$(sanitize_input "$input")
-  assert_equals "owner/repo-name_123" "$result"
-}
-
 function test_validate_path_with_empty_input() {
   assert_general_error "$(validate_path "")"
 }
@@ -98,11 +71,6 @@ function test_validate_path_with_tmp_path() {
 function test_validate_path_with_relative_path() {
   local result=$(validate_path "relative/path")
   assert_equals "$PWD/relative/path" "$result"
-}
-
-function test_extract_repo_owner() {
-  local result=$(extract_repo_owner "avelino/awesome-go")
-  assert_equals "avelino" "$result"
 }
 
 function test_extract_repo_name() {

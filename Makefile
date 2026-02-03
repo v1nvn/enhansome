@@ -30,6 +30,18 @@ test-cleanup: ## Run only cleanup tests
 	@echo "Running cleanup tests..."
 	@bashunit tests/cleanup_test.sh
 
+test-caching: ## Run only caching tests
+	@echo "Running caching tests..."
+	@bashunit tests/caching_test.sh
+
+test-registry-check: ## Run only registry check tests
+	@echo "Running registry check tests..."
+	@bashunit tests/registry_check_test.sh
+
+test-cli: ## Run only CLI tests
+	@echo "Running CLI tests..."
+	@bashunit tests/cli_test.sh
+
 test-watch: ## Watch for changes and re-run tests (requires entr)
 	@echo "Watching for changes... (Press Ctrl+C to stop)"
 	@find . -name "*.sh" | entr -c make test

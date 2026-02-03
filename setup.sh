@@ -254,12 +254,6 @@ validate_path() {
   return 0
 }
 
-sanitize_input() {
-  local input=$1
-  # Remove null bytes, carriage returns, and newlines
-  printf '%s' "$input" | tr -d '\n\r\000'
-}
-
 is_directory_nonempty() {
   local dir=$1
 
@@ -272,11 +266,6 @@ is_directory_nonempty() {
   fi
 
   return 0
-}
-
-extract_repo_owner() {
-  local repo=$1
-  cut -d'/' -f1 <<< "$repo"
 }
 
 extract_repo_name() {
@@ -294,10 +283,6 @@ transform_to_enhansome_name() {
   fi
 
   echo "$result"
-}
-
-is_gh_authenticated() {
-  gh auth status >/dev/null 2>&1
 }
 
 get_gh_username() {
@@ -370,52 +355,79 @@ is_cache_valid() {
   [[ $age_diff -lt $CACHE_TTL ]]
 }
 
-get_cached_or_fetch() {
-  local cache_key=$1
-  local fetch_cmd=$2
-  local cache_file
-  cache_file=$(get_cache_path "$cache_key")
-
-  if is_cache_valid "$cache_file"; then
-    log_verbose "Using cached data for: $cache_key"
-    cat "$cache_file"
-    return 0
-  fi
-
-  log_verbose "Cache miss/invalid for: $cache_key, fetching..."
-  local output
-  if output=$($fetch_cmd 2>/dev/null); then
-    echo "$output" | tee "$cache_file"
-    return 0
-  else
-    return 1
-  fi
-}
-
-invalidate_cache() {
-  local cache_key=$1
-  local cache_file
-  cache_file=$(get_cache_path "$cache_key")
-  rm -f "$cache_file"
-  log_verbose "Invalidated cache: $cache_key"
-}
-
 # ============================================================================
 # REGISTRY CHECK FUNCTIONS (with caching)
 # ============================================================================
 
-fetch_denylist() {
-  local cache_key="denylist"
-  local fetch_cmd="gh api repos/$REGISTRY_REPO/contents/denylist.txt -H 'Accept: application/vnd.github.raw+json'"
+# Cache the registry repo using git (shallow clone for efficiency)
+REGISTRY_CACHE_DIR="${CACHE_DIR}/enhansome-registry"
 
-  get_cached_or_fetch "$cache_key" "$fetch_cmd"
+ensure_registry_cache() {
+  local registry_url="https://github.com/${REGISTRY_REPO}"
+
+  # Clone if .git directory is missing (validates it's a git repo)
+  if [[ ! -d "$REGISTRY_CACHE_DIR/.git" ]]; then
+    log_verbose "Cloning registry repo to $REGISTRY_CACHE_DIR"
+
+    # Clean up any partial/failed clone directory
+    rm -rf "$REGISTRY_CACHE_DIR"
+
+    # Clone and clean up on failure
+    if ! git clone --depth 1 --single-branch --quiet "$registry_url" "$REGISTRY_CACHE_DIR" 2>/dev/null; then
+      rm -rf "$REGISTRY_CACHE_DIR"
+      log_verbose "Failed to clone registry repo"
+      return 1
+    fi
+
+    return 0
+  fi
+
+  # Check if cache is stale (more than CACHE_TTL seconds old)
+  local cache_age
+  if [[ "$(uname)" == "Darwin" ]]; then
+    local now
+    now=$(date +%s)
+    cache_age=$(stat -f %m "$REGISTRY_CACHE_DIR/.git" 2>/dev/null || echo 0)
+    local age_diff=$((now - cache_age))
+  else
+    local now
+    now=$(date +%s)
+    cache_age=$(stat -c %Y "$REGISTRY_CACHE_DIR/.git" 2>/dev/null || echo 0)
+    local age_diff=$((now - cache_age))
+  fi
+
+  # Pull if cache is stale
+  if [[ $age_diff -ge $CACHE_TTL ]]; then
+    log_verbose "Registry cache is stale (${age_diff}s old), pulling latest..."
+    git -C "$REGISTRY_CACHE_DIR" pull --quiet 2>/dev/null
+    touch "$REGISTRY_CACHE_DIR/.git"  # Update timestamp
+  else
+    log_verbose "Using cached registry repo (${age_diff}s old)"
+  fi
+
+  return 0
+}
+
+fetch_denylist() {
+  local denylist_file="${REGISTRY_CACHE_DIR}/denylist.txt"
+
+  if [[ ! -f "$denylist_file" ]]; then
+    log_verbose "Denylist file not found: $denylist_file"
+    return 1
+  fi
+
+  cat "$denylist_file"
 }
 
 fetch_allowlist() {
-  local cache_key="allowlist"
-  local fetch_cmd="gh api repos/$REGISTRY_REPO/contents/allowlist.txt -H 'Accept: application/vnd.github.raw+json'"
+  local allowlist_file="${REGISTRY_CACHE_DIR}/allowlist.txt"
 
-  get_cached_or_fetch "$cache_key" "$fetch_cmd"
+  if [[ ! -f "$allowlist_file" ]]; then
+    log_verbose "Allowlist file not found: $allowlist_file"
+    return 1
+  fi
+
+  cat "$allowlist_file"
 }
 
 is_repo_in_denylist() {
@@ -444,6 +456,39 @@ is_repo_in_allowlist() {
 
   # Check if exact entry exists in allowlist
   grep -qxF "$allowlist_entry" <<< "$allowlist" 2>/dev/null
+}
+
+fetch_original_repositories() {
+  # Ensure registry cache exists before trying to read from it
+  ensure_registry_cache || return 1
+
+  local data_dir="${REGISTRY_CACHE_DIR}/data"
+
+  # Check if data directory exists
+  if [[ ! -d "$data_dir" ]]; then
+    log_verbose "Registry data directory not found: $data_dir"
+    return 1
+  fi
+
+  # Extract original_repository from all JSON files
+  for json_file in "$data_dir"/*.json; do
+    [[ -f "$json_file" ]] || continue
+    jq -r '.metadata.original_repository // empty' "$json_file" 2>/dev/null
+  done | grep -v '^$' || true
+}
+
+is_awesome_repo_already_enhansomed() {
+  local awesome_repo=$1
+  local original_repos
+  original_repos=$(fetch_original_repositories)
+
+  if [[ -z "$original_repos" ]]; then
+    return 1
+  fi
+
+  # Check if repo is in the list (exact match)
+  # Use printf to avoid issues with empty strings
+  printf '%s\n' "$original_repos" | grep -qxF "$awesome_repo" 2>/dev/null
 }
 
 is_submodule_already_added() {
@@ -688,6 +733,7 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   # ============================================================================
   if [[ "$REGISTER_REGISTRY" == "true" ]]; then
     init_cache
+    ensure_registry_cache
 
     # Check 1: Denylist - fail if awesome repo is blocked
     if is_repo_in_denylist "$SUBMODULE_REPO"; then
@@ -705,13 +751,13 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
       exit 1
     fi
 
-    # TODO: Check 3: Submodule - skip if awesome repo already has an enhansome repo
-    # This is complex because we need to:
-    # 1. Check if an enhansome repo already exists for this awesome repo
-    # 2. Search user's repos or all of GitHub for "enhansome-{awesome-name}"
-    # 3. Verify that repo actually has this awesome repo as a submodule
-    # For now, this check is skipped. Users will get a duplicate repo error
-    # if they try to create the same enhansome repo twice.
+    # Check 3: Submodule - skip if awesome repo already has an enhansome repo
+    if is_awesome_repo_already_enhansomed "$SUBMODULE_REPO"; then
+      error "Already enhansomed: $SUBMODULE_REPO"
+      log "An enhansome repo for this awesome list already exists"
+      log "To bypass this check, use --no-register"
+      exit 1
+    fi
   fi
 
   # Create GitHub repo
