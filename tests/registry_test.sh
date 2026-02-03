@@ -197,24 +197,7 @@ function test_register_with_registry_in_dry_run_mode() {
   output=$(register_with_registry "test-owner/test-repo" "README.json" 2>&1)
 
   # In dry run, should show what would be done without executing
-  assert_matches ".*DRY RUN.*Would perform the following steps.*" "$output"
-  assert_matches ".*Check for existing PR with head: register/test-owner-test-repo.*" "$output"
-  assert_matches ".*Add entry to allowlist.txt: test-owner/test-repo/README.json.*" "$output"
-  assert_matches ".*Create PR with title: \[setup\.sh\] Register: test-owner/test-repo.*" "$output"
-  assert_matches ".*DRY RUN: Registration PR would be created.*" "$output"
-
-  DRY_RUN="false"
-}
-
-# Test dry run shows correct branch name format
-function test_register_with_registry_dry_run_branch_name() {
-  DRY_RUN="true"
-
-  local output
-  output=$(register_with_registry "my-org/my-awesome-repo" "readme.json" 2>&1)
-
-  # Branch name should convert slashes to dashes
-  assert_matches ".*register/my-org-my-awesome-repo.*" "$output"
+  assert_matches ".*\[DRY RUN\].*Would create registration PR.*test-owner/test-repo/README.json.*" "$output"
 
   DRY_RUN="false"
 }
@@ -227,7 +210,7 @@ function test_register_with_registry_dry_run_allowlist_entry() {
   output=$(register_with_registry "owner/repo" "custom.json" 2>&1)
 
   # Should show the full allowlist entry
-  assert_matches ".*owner/repo/custom.json.*" "$output"
+  assert_matches ".*\[DRY RUN\].*owner/repo/custom.json.*" "$output"
 
   DRY_RUN="false"
 }

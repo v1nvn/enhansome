@@ -60,8 +60,7 @@ function test_execute_in_dry_run_mode() {
   DRY_RUN="true"
   local result
   result=$(execute "Test command" echo "hello")
-  # Just check for key text, not emojis
-  assert_matches ".*DRY RUN.*Would execute.*Test command.*" "$result"
+  assert_matches ".*\[DRY RUN\].*Test command.*" "$result"
   DRY_RUN="false"
 }
 
@@ -87,15 +86,14 @@ function test_execute_preserves_exit_code_on_failure() {
 function test_log_outputs_message() {
   local result
   result=$(log "Test message")
-  assert_equals "Test message" "$result"
+  assert_equals "=> Test message" "$result"
 }
 
 function test_log_verbose_with_verbose_enabled() {
   VERBOSE="true"
   local result
   result=$(log_verbose "Debug info" 2>&1)
-  # Just check for the text content
-  assert_matches ".*DEBUG.*Debug info.*" "$result"
+  assert_matches ".*\[DEBUG\].*Debug info.*" "$result"
   VERBOSE="false"
 }
 
@@ -109,7 +107,7 @@ function test_log_verbose_with_verbose_disabled() {
 function test_warn_outputs_message() {
   local result
   result=$(warn "Warning message" 2>&1)
-  assert_matches ".*Warning.*Warning message.*" "$result"
+  assert_equals "Warning: Warning message" "$result"
 }
 
 function test_error_outputs_message_and_returns_1() {
@@ -117,6 +115,6 @@ function test_error_outputs_message_and_returns_1() {
   result=$(error "Error message" 2>&1)
   local exit_code=$?
 
-  assert_matches ".*Error.*Error message.*" "$result"
+  assert_equals "Error: Error message" "$result"
   assert_equals 1 "$exit_code"
 }

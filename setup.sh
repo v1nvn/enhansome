@@ -12,17 +12,20 @@ set -euo pipefail
 #   ./setup.sh [OPTIONS]
 #
 # Options:
-#   --dry-run        Show what would be done without executing
-#   --verbose        Show debug output
-#   --no-cleanup     Disable automatic cleanup on error
-#   --help           Show this help message
+#   --repo <owner/repo>   Awesome list repo to use as submodule
+#   --name <owner/repo>   Target GitHub repo name (default: auto-generated)
+#   --dest <path>         Destination directory (default: ~/git/<repo-name>)
+#   -f, --file <name>     File to enhance (default: auto-detected README)
+#   --no-register         Skip registry registration
+#   --dry-run             Show what would be done without executing
+#   --verbose             Show debug output
+#   --no-cleanup          Disable automatic cleanup on error
+#   --help                Show this help message
 #
 # Examples:
-#   ./setup.sh                    # Interactive mode
-#   ./setup.sh --dry-run         # Dry-run mode (shows what would be done)
-#   ./setup.sh --verbose         # Verbose mode (shows debug output)
-#   ./setup.sh --no-cleanup      # Disable automatic cleanup on error
-#   ./setup.sh --dry-run --verbose  # Combine options
+#   ./setup.sh --repo avelino/awesome-go
+#   ./setup.sh --repo avelino/awesome-go --name myuser/enhansome-go --dest ~/dev/my-go
+#   ./setup.sh --repo avelino/awesome-go --no-register --dry-run
 # ============================================================================
 
 # --- Configuration ---
@@ -31,6 +34,16 @@ SCRIPT_VERSION="1.0.0"
 DRY_RUN="false"
 VERBOSE="false"
 CLEANUP_ON_ERROR="true"
+SUBMODULE_REPO=""
+REPO_NAME=""
+DEST_DIR=""
+FILE_TO_ENHANCE=""
+REGISTER_REGISTRY="true"
+
+# --- Caching ---
+CACHE_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/enhansome"
+CACHE_TTL=3600  # Cache TTL in seconds (1 hour)
+REGISTRY_REPO="v1nvn/enhansome-registry"
 
 # --- Parse Command Line Arguments ---
 show_help() {
@@ -43,17 +56,20 @@ Usage:
   ./setup.sh [OPTIONS]
 
 Options:
-  --dry-run        Show what would be done without executing
-  --verbose        Show debug output
-  --no-cleanup     Disable automatic cleanup on error
-  --help           Show this help message
+  --repo <owner/repo>   Awesome list repo to use as submodule (required)
+  --name <owner/repo>   Target GitHub repo name (default: auto-generated)
+  --dest <path>         Destination directory (default: ~/git/<repo-name>)
+  -f, --file <name>     File to enhance (default: auto-detected README)
+  --no-register         Skip registry registration
+  --dry-run             Show what would be done without executing
+  --verbose             Show debug output
+  --no-cleanup          Disable automatic cleanup on error
+  --help                Show this help message
 
 Examples:
-  ./setup.sh                    # Interactive mode
-  ./setup.sh --dry-run         # Dry-run mode
-  ./setup.sh --verbose         # Verbose mode
-  ./setup.sh --no-cleanup      # Disable automatic cleanup on error
-  ./setup.sh --dry-run --verbose  # Combine options
+  ./setup.sh --repo avelino/awesome-go
+  ./setup.sh --repo avelino/awesome-go --name myuser/enhansome-go --dest ~/dev/my-go
+  ./setup.sh --repo avelino/awesome-go --no-register --dry-run
 
 EOF
   exit 0
@@ -62,6 +78,26 @@ EOF
 parse_args() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
+      --repo)
+        SUBMODULE_REPO="$2"
+        shift 2
+        ;;
+      --name)
+        REPO_NAME="$2"
+        shift 2
+        ;;
+      --dest)
+        DEST_DIR="$2"
+        shift 2
+        ;;
+      -f|--file)
+        FILE_TO_ENHANCE="$2"
+        shift 2
+        ;;
+      --no-register)
+        REGISTER_REGISTRY="false"
+        shift
+        ;;
       --dry-run)
         DRY_RUN="true"
         shift
@@ -96,22 +132,22 @@ CLONED_DIR=""
 # ============================================================================
 
 log() {
-  echo "$1"
+  echo "=> $1"
 }
 
 log_verbose() {
   if [[ "${VERBOSE}" == "true" ]]; then
-    echo "🔍 DEBUG: $1" >&2
+    echo "[DEBUG] $1" >&2
   fi
 }
 
 error() {
-  echo "❌ Error: $1" >&2
+  echo "Error: $1" >&2
   return 1
 }
 
 warn() {
-  echo "⚠️  Warning: $1" >&2
+  echo "Warning: $1" >&2
 }
 
 # ============================================================================
@@ -124,7 +160,7 @@ cleanup_on_error() {
     return 0
   fi
 
-  log "🧹 Cleaning up after error..."
+  log "Cleaning up after error"
   local cleanup_errors=0
 
   if [[ -n "$CLONED_DIR" ]] && [[ -d "$CLONED_DIR" ]]; then
@@ -138,7 +174,7 @@ cleanup_on_error() {
   fi
 
   if [[ -n "$CREATED_REPO" ]]; then
-    log_verbose "Attempting to delete created repo: $CREATED_REPO"
+    log_verbose "Deleting created repo: $CREATED_REPO"
     if gh repo delete "$CREATED_REPO" --yes 2>/dev/null; then
       log "Deleted repository: $CREATED_REPO"
     else
@@ -148,7 +184,7 @@ cleanup_on_error() {
   fi
 
   if [[ $cleanup_errors -eq 0 ]]; then
-    log "✅ Cleanup completed successfully"
+    log "Cleanup completed successfully"
     return 0
   else
     warn "Cleanup completed with $cleanup_errors errors"
@@ -161,8 +197,7 @@ execute() {
   shift
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "🔍 DRY RUN: Would execute: $description"
-    log_verbose "  Command: $*"
+    log "[DRY RUN] $description"
     return 0
   else
     log_verbose "Executing: $*"
@@ -297,6 +332,169 @@ check_prerequisites() {
   return 0
 }
 
+# ============================================================================
+# CACHING FUNCTIONS
+# ============================================================================
+
+init_cache() {
+  mkdir -p "$CACHE_DIR"
+}
+
+get_cache_path() {
+  local cache_key=$1
+  echo "$CACHE_DIR/${cache_key}.cache"
+}
+
+is_cache_valid() {
+  local cache_file=$1
+  local now
+
+  if [[ ! -f "$cache_file" ]]; then
+    return 1
+  fi
+
+  # Check cache age
+  if [[ "$(uname)" == "Darwin" ]]; then
+    now=$(date +%s)
+    local cache_age
+    cache_age=$(stat -f %m "$cache_file" 2>/dev/null || echo 0)
+    local age_diff=$((now - cache_age))
+  else
+    local cache_age
+    cache_age=$(stat -c %Y "$cache_file" 2>/dev/null || echo 0)
+    local now
+    now=$(date +%s)
+    local age_diff=$((now - cache_age))
+  fi
+
+  [[ $age_diff -lt $CACHE_TTL ]]
+}
+
+get_cached_or_fetch() {
+  local cache_key=$1
+  local fetch_cmd=$2
+  local cache_file
+  cache_file=$(get_cache_path "$cache_key")
+
+  if is_cache_valid "$cache_file"; then
+    log_verbose "Using cached data for: $cache_key"
+    cat "$cache_file"
+    return 0
+  fi
+
+  log_verbose "Cache miss/invalid for: $cache_key, fetching..."
+  local output
+  if output=$($fetch_cmd 2>/dev/null); then
+    echo "$output" | tee "$cache_file"
+    return 0
+  else
+    return 1
+  fi
+}
+
+invalidate_cache() {
+  local cache_key=$1
+  local cache_file
+  cache_file=$(get_cache_path "$cache_key")
+  rm -f "$cache_file"
+  log_verbose "Invalidated cache: $cache_key"
+}
+
+# ============================================================================
+# REGISTRY CHECK FUNCTIONS (with caching)
+# ============================================================================
+
+fetch_denylist() {
+  local cache_key="denylist"
+  local fetch_cmd="gh api repos/$REGISTRY_REPO/contents/denylist.txt -H 'Accept: application/vnd.github.raw+json'"
+
+  get_cached_or_fetch "$cache_key" "$fetch_cmd"
+}
+
+fetch_allowlist() {
+  local cache_key="allowlist"
+  local fetch_cmd="gh api repos/$REGISTRY_REPO/contents/allowlist.txt -H 'Accept: application/vnd.github.raw+json'"
+
+  get_cached_or_fetch "$cache_key" "$fetch_cmd"
+}
+
+is_repo_in_denylist() {
+  local awesome_repo=$1
+  local denylist
+  denylist=$(fetch_denylist)
+
+  if [[ -z "$denylist" ]]; then
+    return 1
+  fi
+
+  # Check if repo is in denylist (exact match)
+  grep -qxF "$awesome_repo" <<< "$denylist" 2>/dev/null
+}
+
+is_repo_in_allowlist() {
+  local target_repo=$1
+  local json_file=$2
+  local allowlist_entry="${target_repo}/${json_file}"
+  local allowlist
+  allowlist=$(fetch_allowlist)
+
+  if [[ -z "$allowlist" ]]; then
+    return 1
+  fi
+
+  # Check if exact entry exists in allowlist
+  grep -qxF "$allowlist_entry" <<< "$allowlist" 2>/dev/null
+}
+
+is_submodule_already_added() {
+  local awesome_repo=$1
+  local gitmodules_file=".gitmodules"
+
+  if [[ ! -f "$gitmodules_file" ]]; then
+    return 1
+  fi
+
+  # Check if submodule URL matches the awesome repo
+  grep -q "url = https://github.com/${awesome_repo}.git" "$gitmodules_file" 2>/dev/null
+}
+
+run_idempotency_checks() {
+  local awesome_repo=$1
+  local target_repo=$2
+  local json_file=$3
+
+  # Only run checks if registry registration is enabled
+  if [[ "$REGISTER_REGISTRY" != "true" ]]; then
+    log_verbose "Registry registration disabled, skipping idempotency checks"
+    return 0
+  fi
+
+  init_cache
+
+  # Check 1: Denylist
+  if is_repo_in_denylist "$awesome_repo"; then
+    error "Repository '$awesome_repo' is in the denylist and cannot be registered"
+    log "To bypass, use --no-register (registration will be skipped)"
+    return 1
+  fi
+
+  # Check 2: Allowlist (already registered?)
+  if is_repo_in_allowlist "$target_repo" "$json_file"; then
+    log "Already registered: ${target_repo}/${json_file}"
+    log "Skipping duplicate registration"
+    return 2  # Special exit code to skip registration but continue
+  fi
+
+  # Check 3: Submodule already exists (check after cd to dest)
+  if is_submodule_already_added "$awesome_repo"; then
+    log "Submodule already exists: $awesome_repo"
+    log "Skipping duplicate submodule addition"
+    return 3  # Special exit code to skip submodule but continue
+  fi
+
+  return 0
+}
+
 # Detect the README file in a directory
 # Checks common variations: README.md, readme.md, Readme.md, README.MD
 detect_readme_file() {
@@ -322,32 +520,6 @@ md_to_json_filename() {
 }
 
 # ============================================================================
-# USER INTERACTION FUNCTIONS
-# ============================================================================
-
-prompt() {
-  local var_name=$1
-  local prompt_text=$2
-  local default_value=$3
-  local validator=${4:-}
-
-  while true; do
-    read -rp "$prompt_text [$default_value]: " input
-    input=$(sanitize_input "${input:-$default_value}")
-
-    # Apply validator if provided
-    if [[ -n "$validator" ]] && ! $validator "$input" 2>/dev/null; then
-      warn "Invalid input. Please try again."
-      continue
-    fi
-
-    # Safe assignment without eval
-    printf -v "$var_name" '%s' "$input"
-    break
-  done
-}
-
-# ============================================================================
 # REGISTRY FUNCTIONS
 # ============================================================================
 
@@ -358,18 +530,11 @@ register_with_registry() {
   local branch_name="register/${repo//\//-}"
   local registry_repo="v1nvn/enhansome-registry"
 
-  log "📝 Creating registration PR on enhansome-registry..."
+  log "Creating registration PR on enhansome-registry"
 
   # DRY RUN mode: show what would be done
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "🔍 DRY RUN: Would perform the following steps:"
-    log "   1. Check for existing PR with head: $branch_name"
-    log "   2. Check push permissions for $registry_repo"
-    log "   3. Fork $registry_repo if no push access"
-    log "   4. Create branch: $branch_name"
-    log "   5. Add entry to allowlist.txt: $allowlist_entry"
-    log "   6. Create PR with title: [setup.sh] Register: $repo"
-    log "✅ DRY RUN: Registration PR would be created"
+    log "[DRY RUN] Would create registration PR for: $allowlist_entry"
     return 0
   fi
 
@@ -379,7 +544,7 @@ register_with_registry() {
     --head "$branch_name" --state open --json url --jq '.[0].url' 2>/dev/null)
 
   if [[ -n "$existing_pr" ]]; then
-    log "✅ Registration PR already exists: $existing_pr"
+    log "Registration PR already exists: $existing_pr"
     return 0
   fi
 
@@ -392,7 +557,7 @@ register_with_registry() {
     target_repo="$registry_repo"
     head_ref="$branch_name"
   else
-    log "   Forking registry (no direct push access)..."
+    log "Forking registry (no direct push access)"
     gh repo fork "$registry_repo" --clone=false 2>/dev/null || true
     local fork_owner
     fork_owner=$(gh api user --jq '.login')
@@ -447,8 +612,8 @@ register_with_registry() {
 ---
 *Automated registration by Enhansome setup.sh v${SCRIPT_VERSION}*")
 
-  log "✅ Registration PR created: $pr_url"
-  log "   Merge to complete registration."
+  log "Registration PR created: $pr_url"
+  log "Merge to complete registration"
 }
 
 # ============================================================================
@@ -468,26 +633,39 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   # Check prerequisites
   check_prerequisites gh git || exit 1
 
-  # Get submodule repo
-  prompt SUBMODULE_REPO "Enter submodule repo (format: owner/repo)" "avelino/awesome-go" "validate_repo_format"
+  # Validate required flags
+  if [[ -z "$SUBMODULE_REPO" ]]; then
+    error "--repo is required"
+    echo "Use --help for usage information"
+    exit 1
+  fi
 
+  validate_repo_format "$SUBMODULE_REPO" || exit 1
+
+  # Derive repo name from submodule if not provided
   SUBMODULE_NAME=$(extract_repo_name "$SUBMODULE_REPO")
   ENHANSOME_REPO=$(transform_to_enhansome_name "$SUBMODULE_NAME")
 
   # Get GitHub authenticated username
   if [[ "$DRY_RUN" == "true" ]]; then
     AUTH_USER="dry-run-user"
-    log_verbose "DRY RUN: Using mock username: $AUTH_USER"
+    log_verbose "Using mock username: $AUTH_USER"
   else
     AUTH_USER=$(get_gh_username) || exit 1
   fi
-  DEFAULT_REPO_NAME="$AUTH_USER/$ENHANSOME_REPO"
 
-  prompt REPO_NAME "Enter name for new GitHub repo" "$DEFAULT_REPO_NAME" "validate_repo_format"
+  # Set default repo name if not provided
+  if [[ -z "$REPO_NAME" ]]; then
+    REPO_NAME="$AUTH_USER/$ENHANSOME_REPO"
+  fi
 
-  # Validate destination path
-  read -rp "Enter destination directory to clone into [$HOME/git/${REPO_NAME##*/}]: " dest_input
-  DEST_DIR="${dest_input:-$HOME/git/${REPO_NAME##*/}}"
+  validate_repo_format "$REPO_NAME" || exit 1
+
+  # Set default destination if not provided
+  if [[ -z "$DEST_DIR" ]]; then
+    DEST_DIR="$HOME/git/${REPO_NAME##*/}"
+  fi
+
   DEST_DIR=$(validate_path "$DEST_DIR") || exit 1
 
   # Check if destination directory already exists and is not empty
@@ -502,61 +680,81 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
     exit 1
   fi
 
+  # Derive JSON filename for registry (needed for allowlist check)
+  JSON_FILE=$(md_to_json_filename "${FILE_TO_ENHANCE:-README.md}")
+
+  # ============================================================================
+  # IDEMPOTENCY CHECKS (all done early, before creating resources)
+  # ============================================================================
+  if [[ "$REGISTER_REGISTRY" == "true" ]]; then
+    init_cache
+
+    # Check 1: Denylist - fail if awesome repo is blocked
+    if is_repo_in_denylist "$SUBMODULE_REPO"; then
+      error "Repository '$SUBMODULE_REPO' is in the denylist"
+      log "Denylist contains repositories that cannot be auto-registered"
+      log "To bypass this check, use --no-register"
+      exit 1
+    fi
+
+    # Check 2: Allowlist - fail if target repo already registered
+    if is_repo_in_allowlist "$REPO_NAME" "$JSON_FILE"; then
+      error "Already registered: ${REPO_NAME}/${JSON_FILE}"
+      log "This repository is already in the registry allowlist"
+      log "To bypass this check, use --no-register"
+      exit 1
+    fi
+
+    # TODO: Check 3: Submodule - skip if awesome repo already has an enhansome repo
+    # This is complex because we need to:
+    # 1. Check if an enhansome repo already exists for this awesome repo
+    # 2. Search user's repos or all of GitHub for "enhansome-{awesome-name}"
+    # 3. Verify that repo actually has this awesome repo as a submodule
+    # For now, this check is skipped. Users will get a duplicate repo error
+    # if they try to create the same enhansome repo twice.
+  fi
+
   # Create GitHub repo
-  log "🚀 Creating GitHub repo: $REPO_NAME..."
+  log "Creating GitHub repo: $REPO_NAME"
   execute "Create GitHub repo" gh repo create "$REPO_NAME" --public || exit 1
   CREATED_REPO="$REPO_NAME"
 
   # Get canonical repo URL
   if [[ "$DRY_RUN" == "true" ]]; then
     REPO_URL="https://github.com/$REPO_NAME"
-    log_verbose "DRY RUN: Using constructed URL: $REPO_URL"
+    log_verbose "Using constructed URL: $REPO_URL"
   else
     REPO_URL=$(gh repo view "$REPO_NAME" --json url -q .url) || exit 1
   fi
 
   # Clone repo
-  log "📦 Cloning $REPO_URL into $DEST_DIR..."
+  log "Cloning $REPO_URL into $DEST_DIR"
   execute "Clone repository" git clone "$REPO_URL" "$DEST_DIR" || exit 1
   CLONED_DIR="$DEST_DIR"
 
-  if [[ "$DRY_RUN" == "true" ]]; then
-    # Create temporary directory for dry run so script can continue
-    mkdir -p "$DEST_DIR"
-    log_verbose "DRY RUN: Created temporary directory: $DEST_DIR"
-  fi
-
   cd "$DEST_DIR" || exit 1
 
-  # Add submodule FIRST (need it to detect README file)
-  log "📁 Adding submodule $SUBMODULE_REPO under ./origin..."
+  # Add submodule
+  log "Adding submodule $SUBMODULE_REPO under ./origin"
   execute "Add submodule" git submodule add "https://github.com/$SUBMODULE_REPO.git" origin || exit 1
-
-  if [[ "$DRY_RUN" == "true" ]]; then
-    # Create mock origin directory with README for dry run
-    mkdir -p origin
-    touch origin/README.md
-    log_verbose "DRY RUN: Created mock origin directory with README.md"
-  fi
 
   # Detect README file in submodule
   if [[ "$DRY_RUN" == "true" ]]; then
     DETECTED_README="README.md"
-    log "📄 DRY RUN: Would detect README in submodule (defaulting to README.md)"
+    log_verbose "Would detect README in submodule (defaulting to README.md)"
     DEFAULT_FILE="$DETECTED_README"
   else
     DETECTED_README=$(detect_readme_file "origin")
     if [[ -n "$DETECTED_README" ]]; then
-      log "📄 Detected: $DETECTED_README"
+      log "Detected: $DETECTED_README"
       DEFAULT_FILE="$DETECTED_README"
     else
-      warn "Could not detect README file in submodule."
+      warn "Could not detect README file in submodule"
       DEFAULT_FILE="README.md"
     fi
   fi
 
-  # Prompt for file to enhance
-  read -rp "Enter file to enhance [$DEFAULT_FILE]: " FILE_TO_ENHANCE
+  # Set default file to enhance if not provided
   FILE_TO_ENHANCE="${FILE_TO_ENHANCE:-$DEFAULT_FILE}"
 
   # Validate file exists
@@ -569,14 +767,11 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   JSON_FILE=$(md_to_json_filename "$FILE_TO_ENHANCE")
 
   # Create workflow directory
-  log "🛠️  Creating GitHub Actions workflow..."
+  log "Creating GitHub Actions workflow"
   execute "Create workflow directory" mkdir -p .github/workflows
 
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "🔍 DRY RUN: Would create .github/workflows/main.yml with:"
-    log "   - Schedule: daily at 2am UTC"
-    log "   - File to enhance: $FILE_TO_ENHANCE"
-    log "   - Action: v1nvn/enhansome@v1"
+    log_verbose "Would create .github/workflows/main.yml"
   else
     cat > .github/workflows/main.yml <<EOF
 name: Enhance Awesome List
@@ -610,31 +805,25 @@ jobs:
 
       - name: Enhancement Complete
         if: success()
-        run: echo "✅ Awesome list enhancement complete."
+        run: echo "Awesome list enhancement complete."
 EOF
   fi
 
-  # Prompt for registry registration
-  echo ""
-  read -rp "Register this list with the Enhansome Registry? [Y/n]: " REGISTER_REGISTRY
-  REGISTER_REGISTRY="${REGISTER_REGISTRY:-Y}"
-
-  if [[ "$REGISTER_REGISTRY" =~ ^[Yy]$ ]]; then
+  # Register with registry (unless --no-register is set)
+  if [[ "$REGISTER_REGISTRY" == "true" ]]; then
     register_with_registry "$REPO_NAME" "$JSON_FILE"
   else
-    log "⏭️  Skipping registry registration."
-    log "   You can register later at:"
-    log "   https://github.com/v1nvn/enhansome-registry"
+    log "Skipping registry registration"
+    log "Register later at: https://github.com/v1nvn/enhansome-registry"
   fi
 
   # Initial commit & push
-  log "📤 Committing and pushing changes..."
+  log "Committing and pushing changes"
   execute "Git add" git add .
-  execute "Git commit" git commit -m "chore: 🎉 Initial setup with Enhansome workflow and submodule"
+  execute "Git commit" git commit -m "chore: Initial setup with Enhansome workflow and submodule"
   execute "Git push" git push origin main || exit 1
 
-  echo ""
-  log "✅ Done! Repo created at: $REPO_URL"
+  log "Done! Repo created at: $REPO_URL"
 
   # Clear cleanup state on success
   CREATED_REPO=""
