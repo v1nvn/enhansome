@@ -60,7 +60,7 @@ function test_execute_in_dry_run_mode() {
   DRY_RUN="true"
   local result
   result=$(execute "Test command" echo "hello")
-  assert_matches ".*\[DRY RUN\].*Test command.*" "$result"
+  assert_equals "=> [DRY RUN] Test command" "$result"
   DRY_RUN="false"
 }
 
@@ -93,7 +93,7 @@ function test_log_verbose_with_verbose_enabled() {
   VERBOSE="true"
   local result
   result=$(log_verbose "Debug info" 2>&1)
-  assert_matches ".*\[DEBUG\].*Debug info.*" "$result"
+  assert_equals "[DEBUG] Debug info" "$result"
   VERBOSE="false"
 }
 

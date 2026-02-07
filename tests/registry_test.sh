@@ -78,9 +78,8 @@ function test_detect_readme_file_with_lowercase() {
   local temp_dir=$(mktemp -d)
   touch "$temp_dir/readme.md"
   local result=$(detect_readme_file "$temp_dir")
-  # On case-insensitive filesystems (macOS), this returns the first candidate
-  # On case-sensitive filesystems (Linux), this returns the exact match
-  assert_matches "readme.md|README.md" "$result"
+  # Should return the exact filename with correct case
+  assert_equals "readme.md" "$result"
   rm -rf "$temp_dir"
 }
 
@@ -88,9 +87,8 @@ function test_detect_readme_file_with_mixed_case() {
   local temp_dir=$(mktemp -d)
   touch "$temp_dir/Readme.md"
   local result=$(detect_readme_file "$temp_dir")
-  # On case-insensitive filesystems (macOS), this returns the first candidate
-  # On case-sensitive filesystems (Linux), this returns the exact match
-  assert_matches "Readme.md|README.md" "$result"
+  # Should return the exact filename with correct case
+  assert_equals "Readme.md" "$result"
   rm -rf "$temp_dir"
 }
 
@@ -136,8 +134,8 @@ function test_register_with_registry_in_dry_run_mode() {
   local output
   output=$(register_with_registry "test-owner/test-repo" "README.json" 2>&1)
 
-  # In dry run, should show new format message
-  assert_matches ".*\[DRY RUN\].*Would create registration PR.*test-owner/test-repo.*" "$output"
+  # In dry run, should show dry run message (output contains multiple lines)
+  assert_contains "[DRY RUN] Would create registration PR for: test-owner/test-repo" "$output"
 
   DRY_RUN="false"
 }
@@ -149,8 +147,8 @@ function test_register_with_registry_dry_run_allowlist_entry() {
   local output
   output=$(register_with_registry "owner/repo" "custom.json" 2>&1)
 
-  # Should show the repo name
-  assert_matches ".*\[DRY RUN\].*owner/repo.*" "$output"
+  # Should show the dry run message with repo (output contains multiple lines)
+  assert_contains "[DRY RUN] Would create registration PR for: owner/repo" "$output"
 
   DRY_RUN="false"
 }
@@ -170,9 +168,9 @@ function test_fetch_allowlist_scans_repos_directory() {
   local result
   result=$(fetch_allowlist)
 
-  # Should contain both entries
-  assert_matches ".*owner1/repo1/README.json.*" "$result"
-  assert_matches ".*owner2/repo2/custom.json.*" "$result"
+  # Should contain both entries (use assert_contains for substring check)
+  assert_contains "owner1/repo1/README.json" "$result"
+  assert_contains "owner2/repo2/custom.json" "$result"
 
   rm -rf "${cache_dir}/repos"
 }

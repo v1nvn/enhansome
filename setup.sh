@@ -529,19 +529,24 @@ run_idempotency_checks() {
 }
 
 # Detect the README file in a directory
+# Returns the actual filename with correct case (important for case-sensitive systems)
 # Checks common variations: README.md, readme.md, Readme.md, README.MD
 detect_readme_file() {
-  local dir=$1
-  local candidates=("README.md" "readme.md" "Readme.md" "README.MD" "ReadMe.md")
+  local dir="$1"
+  local f
 
-  for candidate in "${candidates[@]}"; do
-    if [[ -f "$dir/$candidate" ]]; then
-      echo "$candidate"
-      return 0
-    fi
+  [[ -d "$dir" ]] || return 1
+
+  for f in "$dir"/*; do
+    [[ -f "$f" ]] || continue
+    case "$(basename "$f")" in
+      [Rr][Ee][Aa][Dd][Mm][Ee].[Mm][Dd])
+        printf '%s\n' "$(basename "$f")"
+        return 0
+        ;;
+    esac
   done
 
-  # No README found
   return 1
 }
 
