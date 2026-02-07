@@ -599,7 +599,7 @@ register_with_registry() {
   fi
 
   # Clean up branch from any previous failed attempt
-  gh api "repos/$target_repo/git/refs/heads/$branch_name" --method DELETE 2>/dev/null || true
+  gh api "repos/$target_repo/git/refs/heads/$branch_name" --method DELETE >/dev/null 2>&1 || true
 
   # Create branch from main
   local main_sha

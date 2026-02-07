@@ -476,7 +476,7 @@ while IFS='|' read -r owner name links last_modified; do
   if [[ -n "$LIMIT" ]]; then
     log "[$processed/$LIMIT] Checking: $repo ($links links, updated: ${last_modified})"
   else
-    log "[$queried/$processing_count] Processing: $repo ($links links, updated: ${last_modified})"
+    log "[$queried/$remaining_count] Processing: $repo ($links links, updated: ${last_modified})"
   fi
 
   # Build setup args for this specific repo
