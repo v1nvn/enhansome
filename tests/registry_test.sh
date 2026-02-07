@@ -113,79 +113,19 @@ function test_detect_readme_file_returns_error_when_not_found() {
   rm -rf "$temp_dir"
 }
 
-# Test the content appending logic (what would be sent in base64)
-function test_content_appending_preserves_existing_newline() {
-  local current_content=$'entry1\nentry2\n'
-  local new_entry="entry3"
-  local expected=$'entry1\nentry2\nentry3\n'
-  local result=$(printf '%s%s\n' "$current_content" "$new_entry")
+# Test index.json format
+function test_index_json_format() {
+  local json_file="README.json"
+  local expected='{"filename": "README.json"}'
+  local result=$(printf '{"filename": "%s"}\n' "$json_file")
   assert_equals "$expected" "$result"
 }
 
-function test_content_appending_with_empty_file() {
-  local current_content=""
-  local new_entry="entry1"
-  local expected=$'entry1\n'
-  local result=$(printf '%s%s\n' "$current_content" "$new_entry")
-  assert_equals "$expected" "$result"
-}
-
-function test_content_appending_with_single_entry() {
-  local current_content=$'entry1\n'
-  local new_entry="entry2"
-  local expected=$'entry1\nentry2\n'
-  local result=$(printf '%s%s\n' "$current_content" "$new_entry")
-  assert_equals "$expected" "$result"
-}
-
-# Test the bug case: content WITHOUT trailing newline (like the PR issue)
-function test_content_appending_without_trailing_newline() {
-  local current_content="entry1"
-  local new_entry="entry2"
-  local expected=$'entry1\nentry2\n'
-  # This is the current buggy implementation - will fail
-  local result_buggy=$(printf '%s%s\n' "$current_content" "$new_entry")
-  # This should be the correct implementation - should pass
-  local result_correct=$(printf '%s\n%s\n' "$current_content" "$new_entry")
-
-  # Verify buggy version produces wrong output
-  assert_not_equals "$expected" "$result_buggy"
-  # Verify correct version produces expected output
-  assert_equals "$expected" "$result_correct"
-}
-
-# Test the fixed implementation that handles both cases
-function test_content_appending_with_conditional_newline() {
-  # Helper function that mirrors the fixed implementation
-  append_entry() {
-    local current=$1
-    local entry=$2
-    # Check if content ends with newline
-    if [[ "$current" =~ $'\n'$ ]]; then
-      printf '%s%s\n' "$current" "$entry"
-    else
-      printf '%s\n%s\n' "$current" "$entry"
-    fi
-  }
-
-  # Test with trailing newline
-  local current_with_newline=$'entry1\n'
-  local new_entry="entry2"
-  local expected=$'entry1\nentry2\n'
-  local result=$(append_entry "$current_with_newline" "$new_entry")
-  assert_equals "$expected" "$result"
-
-  # Test without trailing newline (the bug case)
-  local current_without_newline="entry1"
-  local expected=$'entry1\nentry2\n'
-  local result=$(append_entry "$current_without_newline" "$new_entry")
-  assert_equals "$expected" "$result"
-
-  # Test with multiple entries ending with newline
-  local current_multiple=$'entry1\nentry2\n'
-  local new_entry="entry3"
-  local expected=$'entry1\nentry2\nentry3\n'
-  local result=$(append_entry "$current_multiple" "$new_entry")
+function test_index_json_path_construction() {
+  local owner="testowner"
+  local repo_name="testrepo"
+  local expected="repos/testowner/testrepo/index.json"
+  local result="repos/${owner}/${repo_name}/index.json"
   assert_equals "$expected" "$result"
 }
 
@@ -196,23 +136,45 @@ function test_register_with_registry_in_dry_run_mode() {
   local output
   output=$(register_with_registry "test-owner/test-repo" "README.json" 2>&1)
 
-  # In dry run, should show what would be done without executing
-  assert_matches ".*\[DRY RUN\].*Would create registration PR.*test-owner/test-repo/README.json.*" "$output"
+  # In dry run, should show new format message
+  assert_matches ".*\[DRY RUN\].*Would create registration PR.*test-owner/test-repo.*" "$output"
 
   DRY_RUN="false"
 }
 
-# Test dry run shows correct allowlist entry
+# Test dry run shows correct repo
 function test_register_with_registry_dry_run_allowlist_entry() {
   DRY_RUN="true"
 
   local output
   output=$(register_with_registry "owner/repo" "custom.json" 2>&1)
 
-  # Should show the full allowlist entry
-  assert_matches ".*\[DRY RUN\].*owner/repo/custom.json.*" "$output"
+  # Should show the repo name
+  assert_matches ".*\[DRY RUN\].*owner/repo.*" "$output"
 
   DRY_RUN="false"
+}
+
+# Test fetch_allowlist scans repos directory
+function test_fetch_allowlist_scans_repos_directory() {
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  local repos_dir="${cache_dir}/repos"
+
+  # Setup mock repos
+  mkdir -p "${repos_dir}/owner1/repo1"
+  mkdir -p "${repos_dir}/owner2/repo2"
+  echo '{"filename": "README.json"}' > "${repos_dir}/owner1/repo1/index.json"
+  echo '{"filename": "custom.json"}' > "${repos_dir}/owner2/repo2/index.json"
+
+  # Fetch allowlist
+  local result
+  result=$(fetch_allowlist)
+
+  # Should contain both entries
+  assert_matches ".*owner1/repo1/README.json.*" "$result"
+  assert_matches ".*owner2/repo2/custom.json.*" "$result"
+
+  rm -rf "${cache_dir}/repos"
 }
 
 # ============================================================================
@@ -222,13 +184,28 @@ function test_register_with_registry_dry_run_allowlist_entry() {
 # Helper function to create a mock registry cache with test data
 function setup_mock_registry_cache() {
   local cache_dir="${CACHE_DIR}/enhansome-registry"
-  local data_dir="${cache_dir}/data"
+  local repos_dir="${cache_dir}/repos"
 
   # Create directory structure
-  mkdir -p "$data_dir"
+  mkdir -p "${repos_dir}/test1/enhansome-go"
+  mkdir -p "${repos_dir}/test2/enhansome-awesome"
+  mkdir -p "${repos_dir}/test3/enhansome-vscode"
 
-  # Create mock JSON files with original_repository metadata
-  cat > "${data_dir}/test1.json" << 'EOF'
+  # Create mock index.json files
+  cat > "${repos_dir}/test1/enhansome-go/index.json" << 'EOF'
+{"filename": "README.json"}
+EOF
+
+  cat > "${repos_dir}/test2/enhansome-awesome/index.json" << 'EOF'
+{"filename": "README.json"}
+EOF
+
+  cat > "${repos_dir}/test3/enhansome-vscode/index.json" << 'EOF'
+{"filename": "readme.json"}
+EOF
+
+  # Create mock data.json files with original_repository metadata
+  cat > "${repos_dir}/test1/enhansome-go/data.json" << 'EOF'
 {
   "metadata": {
     "original_repository": "avelino/awesome-go",
@@ -237,7 +214,7 @@ function setup_mock_registry_cache() {
 }
 EOF
 
-  cat > "${data_dir}/test2.json" << 'EOF'
+  cat > "${repos_dir}/test2/enhansome-awesome/data.json" << 'EOF'
 {
   "metadata": {
     "original_repository": "sindresorhus/awesome",
@@ -246,20 +223,11 @@ EOF
 }
 EOF
 
-  cat > "${data_dir}/test3.json" << 'EOF'
+  cat > "${repos_dir}/test3/enhansome-vscode/data.json" << 'EOF'
 {
   "metadata": {
     "original_repository": "viatsko/awesome-vscode",
     "source_repository": "test3/enhansome-vscode"
-  }
-}
-EOF
-
-  # Create a JSON file without original_repository (should be ignored)
-  cat > "${data_dir}/test4.json" << 'EOF'
-{
-  "metadata": {
-    "source_repository": "test4/no-original"
   }
 }
 EOF

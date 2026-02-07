@@ -402,14 +402,24 @@ fetch_denylist() {
 }
 
 fetch_allowlist() {
-  local allowlist_file="${REGISTRY_CACHE_DIR}/allowlist.txt"
+  local repos_dir="${REGISTRY_CACHE_DIR}/repos"
 
-  if [[ ! -f "$allowlist_file" ]]; then
-    log_verbose "Allowlist file not found: $allowlist_file"
+  if [[ ! -d "$repos_dir" ]]; then
+    log_verbose "Repos directory not found: $repos_dir"
     return 1
   fi
 
-  cat "$allowlist_file"
+  # Find all index.json files and extract owner/repo/filename
+  # The structure is repos/<owner>/<repo>/index.json (depth 3 from repos dir)
+  find "$repos_dir" -mindepth 3 -maxdepth 3 -name "index.json" -type f | while read -r index_file; do
+    local owner repo filename
+    owner=$(dirname "$index_file" | xargs dirname | xargs basename)
+    repo=$(dirname "$index_file" | xargs basename)
+    filename=$(jq -r '.filename // empty' "$index_file" 2>/dev/null)
+    if [[ -n "$filename" ]]; then
+      echo "${owner}/${repo}/${filename}"
+    fi
+  done
 }
 
 is_repo_in_denylist() {
@@ -428,35 +438,31 @@ is_repo_in_denylist() {
 is_repo_in_allowlist() {
   local target_repo=$1
   local json_file=$2
-  local allowlist_entry="${target_repo}/${json_file}"
-  local allowlist
-  allowlist=$(fetch_allowlist)
+  local index_file="${REGISTRY_CACHE_DIR}/repos/${target_repo}/index.json"
 
-  if [[ -z "$allowlist" ]]; then
+  if [[ ! -f "$index_file" ]]; then
     return 1
   fi
 
-  # Check if exact entry exists in allowlist
-  grep -qxF "$allowlist_entry" <<< "$allowlist" 2>/dev/null
+  # Verify the filename matches
+  local filename
+  filename=$(jq -r '.filename // empty' "$index_file" 2>/dev/null)
+  [[ "$filename" == "$json_file" ]]
 }
 
 fetch_original_repositories() {
-  # Ensure registry cache exists before trying to read from it
   ensure_registry_cache || return 1
 
-  local data_dir="${REGISTRY_CACHE_DIR}/data"
+  local repos_dir="${REGISTRY_CACHE_DIR}/repos"
 
-  # Check if data directory exists
-  if [[ ! -d "$data_dir" ]]; then
-    log_verbose "Registry data directory not found: $data_dir"
+  if [[ ! -d "$repos_dir" ]]; then
+    log_verbose "Repos directory not found: $repos_dir"
     return 1
   fi
 
-  # Extract original_repository from all JSON files
-  for json_file in "$data_dir"/*.json; do
-    [[ -f "$json_file" ]] || continue
-    jq -r '.metadata.original_repository // empty' "$json_file" 2>/dev/null
-  done | grep -v '^$' || true
+  # Extract original_repository from all data.json files
+  # The structure is repos/<owner>/<repo>/data.json (depth 3 from repos dir)
+  find "$repos_dir" -mindepth 3 -maxdepth 3 -name "data.json" -type f -exec jq -r '.metadata.original_repository // empty' {} \; 2>/dev/null | grep -v '^$' || true
 }
 
 is_awesome_repo_already_enhansomed() {
@@ -553,15 +559,16 @@ md_to_json_filename() {
 register_with_registry() {
   local repo=$1
   local json_file=$2
-  local allowlist_entry="${repo}/${json_file}"
+  local owner="${repo%/*}"
+  local repo_name="${repo#*/}"
   local branch_name="register/${repo//\//-}"
   local registry_repo="v1nvn/enhansome-registry"
+  local index_path="repos/${owner}/${repo_name}/index.json"
 
   log "Creating registration PR on enhansome-registry"
 
-  # DRY RUN mode: show what would be done
   if [[ "$DRY_RUN" == "true" ]]; then
-    log "[DRY RUN] Would create registration PR for: $allowlist_entry"
+    log "[DRY RUN] Would create registration PR for: $repo"
     return 0
   fi
 
@@ -576,8 +583,7 @@ register_with_registry() {
   fi
 
   # Determine target repo: direct if push access, fork otherwise
-  local target_repo head_ref
-  local can_push
+  local target_repo head_ref can_push
   can_push=$(gh api "repos/$registry_repo" --jq '.permissions.push' 2>/dev/null)
 
   if [[ "$can_push" == "true" ]]; then
@@ -604,37 +610,45 @@ register_with_registry() {
     -f ref="refs/heads/$branch_name" \
     -f sha="$main_sha" >/dev/null
 
-  # Get current allowlist.txt content (raw) and SHA
-  local file_sha current_content
-  file_sha=$(gh api "repos/$target_repo/contents/allowlist.txt" --jq '.sha')
-  current_content=$(gh api "repos/$target_repo/contents/allowlist.txt" \
-    -H "Accept: application/vnd.github.raw+json")
+  # Create index.json content
+  local index_content_b64
+  index_content_b64=$(printf '{"filename": "%s"}\n' "$json_file" | base64)
 
-  # Append entry and base64 encode for the Contents API
-  # Ensure proper newline separation regardless of whether current content ends with newline
-  local new_content_b64
-  if [[ "$current_content" =~ $'\n'$ ]]; then
-    # Content already ends with newline, just append entry with trailing newline
-    new_content_b64=$(printf '%s%s\n' "$current_content" "$allowlist_entry" | base64)
-  else
-    # Content doesn't end with newline, add separator before appending
-    new_content_b64=$(printf '%s\n%s\n' "$current_content" "$allowlist_entry" | base64)
+  # Check if file exists (for new repos, it won't)
+  local file_sha=""
+  if gh api "repos/$target_repo/contents/$index_path" >/dev/null 2>&1; then
+    file_sha=$(gh api "repos/$target_repo/contents/$index_path" --jq '.sha')
   fi
 
-  # Update file on branch
-  gh api "repos/$target_repo/contents/allowlist.txt" \
-    --method PUT \
-    -f message="feat(registry): add $repo" \
-    -f content="$new_content_b64" \
-    -f sha="$file_sha" \
-    -f branch="$branch_name" >/dev/null
+  # Create or update index.json
+  if [[ -n "$file_sha" ]]; then
+    # File exists - update it
+    gh api "repos/$target_repo/contents/$index_path" \
+      --method PUT \
+      -f message="feat(registry): add $repo" \
+      -f content="$index_content_b64" \
+      -f sha="$file_sha" \
+      -f branch="$branch_name" >/dev/null
+  else
+    # New file - create without sha
+    gh api "repos/$target_repo/contents/$index_path" \
+      --method PUT \
+      -f message="feat(registry): add $repo" \
+      -f content="$index_content_b64" \
+      -f branch="$branch_name" >/dev/null
+  fi
 
-  # Create PR (always targets the upstream registry repo)
+  # Create PR
   local pr_url
   pr_url=$(gh pr create --repo "$registry_repo" \
     --head "$head_ref" \
-    --title "[setup.sh] Register: $repo" \
-    --body "Adds \`$allowlist_entry\` to the registry allowlist.
+    --title "register(setup.sh): $repo" \
+    --body "Adds \`$repo\` to the registry.
+
+Creates \`repos/${owner}/${repo_name}/index.json\`:
+\`\`\`json
+{\"filename\": \"${json_file}\"}
+\`\`\`
 
 ---
 *Automated registration by Enhansome setup.sh v${SCRIPT_VERSION}*")

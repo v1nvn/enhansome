@@ -103,51 +103,36 @@ function test_fetch_denylist_with_missing_file() {
 # ============================================================================
 
 function test_is_repo_in_allowlist_with_registered_entry() {
-  # Mock fetch_allowlist to return test data
-  fetch_allowlist() {
-    cat << 'EOF'
-owner1/repo1/README.json
-owner2/repo2/custom.json
-owner3/repo3/readme.json
-EOF
-  }
+  # Mock is_repo_in_allowlist to simulate new structure
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  mkdir -p "${cache_dir}/repos/owner1/repo1"
+  echo '{"filename": "README.json"}' > "${cache_dir}/repos/owner1/repo1/index.json"
 
   is_repo_in_allowlist "owner1/repo1" "README.json"
   assert_successful_code
 
-  unset -f fetch_allowlist
+  rm -rf "${cache_dir}/repos/owner1"
 }
 
 function test_is_repo_in_allowlist_with_unregistered_entry() {
-  # Mock fetch_allowlist to return test data
-  fetch_allowlist() {
-    cat << 'EOF'
-owner1/repo1/README.json
-owner2/repo2/custom.json
-owner3/repo3/readme.json
-EOF
-  }
+  # Mock is_repo_in_allowlist - no index file exists
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  rm -rf "${cache_dir}/repos/unknown/repo"
 
   is_repo_in_allowlist "unknown/repo" "README.json"
   assert_unsuccessful_code
-
-  unset -f fetch_allowlist
 }
 
 function test_is_repo_in_allowlist_with_custom_json_file() {
-  # Mock fetch_allowlist to return test data
-  fetch_allowlist() {
-    cat << 'EOF'
-owner1/repo1/README.json
-owner2/repo2/custom.json
-owner3/repo3/readme.json
-EOF
-  }
+  # Mock is_repo_in_allowlist with custom filename
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  mkdir -p "${cache_dir}/repos/owner2/repo2"
+  echo '{"filename": "custom.json"}' > "${cache_dir}/repos/owner2/repo2/index.json"
 
   is_repo_in_allowlist "owner2/repo2" "custom.json"
   assert_successful_code
 
-  unset -f fetch_allowlist
+  rm -rf "${cache_dir}/repos/owner2"
 }
 
 function test_fetch_allowlist_with_missing_file() {
@@ -283,20 +268,22 @@ function test_run_idempotency_checks_with_allowlisted_repo() {
     return 1  # Empty denylist
   }
 
-  fetch_allowlist() {
-    cat << 'EOF'
-target/repo/README.json
-EOF
-  }
+  # Create mock index.json file
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  mkdir -p "${cache_dir}/repos/target/repo"
+  echo '{"filename": "README.json"}' > "${cache_dir}/repos/target/repo/index.json"
 
   run_idempotency_checks "awesome/repo" "target/repo" "README.json"
   local exit_code=$?
+
+  # Clean up
+  rm -rf "${cache_dir}/repos/target"
 
   # Exit code 2 means already registered (should skip)
   assert_equals 2 "$exit_code"
 
   REGISTER_REGISTRY="true"
-  unset -f init_cache ensure_registry_cache fetch_denylist fetch_allowlist
+  unset -f init_cache ensure_registry_cache fetch_denylist
 }
 
 function test_run_idempotency_checks_with_existing_submodule() {
@@ -392,14 +379,12 @@ EOF
 }
 
 function test_allowlist_detects_entries_correctly() {
-  # Mock fetch_allowlist
-  fetch_allowlist() {
-    cat << 'EOF'
-owner1/repo1/README.json
-owner2/repo2/custom.json
-owner3/repo3/readme.json
-EOF
-  }
+  # Create mock index.json files
+  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  mkdir -p "${cache_dir}/repos/owner1/repo1"
+  mkdir -p "${cache_dir}/repos/owner2/repo2"
+  echo '{"filename": "README.json"}' > "${cache_dir}/repos/owner1/repo1/index.json"
+  echo '{"filename": "custom.json"}' > "${cache_dir}/repos/owner2/repo2/index.json"
 
   # Verify registered entry is detected
   is_repo_in_allowlist "owner1/repo1" "README.json"
@@ -409,5 +394,7 @@ EOF
   is_repo_in_allowlist "unknown/repo" "README.json"
   assert_unsuccessful_code
 
-  unset -f fetch_allowlist
+  # Clean up
+  rm -rf "${cache_dir}/repos/owner1"
+  rm -rf "${cache_dir}/repos/owner2"
 }
