@@ -175,6 +175,42 @@ Your setup is complete\! The action will now run automatically on schedule. To r
 
 -----
 
+## Troubleshooting
+
+### Nested Submodule Issues
+
+**Problem:** Your workflow fails with an error like:
+```
+fatal: No url found for submodule path 'origin/ReadmeGenerator' in .gitmodules
+fatal: run_command returned non-zero status while recursing in the nested submodules of origin
+```
+
+**Cause:** The upstream repository you're tracking as a submodule has its own nested submodules, and one or more of those nested submodules is misconfigured in their `.gitmodules` file.
+
+**Solutions:**
+
+1. **Use `submodules: 'false'`** in your checkout step (Recommended):
+   ```yml
+   - name: Checkout Repository
+     uses: actions/checkout@v4
+     with:
+       submodules: 'false'  # Enhansome will initialize the submodule itself
+   ```
+
+2. **Use `submodule: ''` (empty string)** to checkout only the immediate submodule without recursive fetching:
+   ```yml
+   - name: Checkout Repository
+     uses: actions/checkout@v4
+     with:
+       submodule: ''  # Checkout immediate submodule only
+   ```
+
+3. **Report the issue upstream** - If the nested submodule issue is in a widely-used awesome list, consider opening an issue in that repository to fix their `.gitmodules` configuration.
+
+**Note:** Enhansome only needs the immediate submodule content (e.g., the `README.md` file from the `origin` folder). It does not require nested submodules to function correctly.
+
+-----
+
 ## Action Inputs
 
 | Input | Description | Required | Default |

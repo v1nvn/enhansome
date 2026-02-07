@@ -25,7 +25,11 @@ runs:
         if [ ! -d "${{ inputs.submodule_path }}/.git" ]; then
           echo "Submodule not initialized or path incorrect. Initializing..."
           # Initialize if .git folder is missing (might happen on first checkout without recursive)
-          git submodule update --init --recursive "${{ inputs.submodule_path }}"
+          # Note: We do NOT use --recursive here because:
+          # 1. This action only needs the immediate submodule content, not nested submodules
+          # 2. Nested submodules may have misconfigured .gitmodules that cause failures
+          # 3. The sync step only copies files from the immediate submodule path
+          git submodule update --init "${{ inputs.submodule_path }}"
         else
           echo "Submodule already initialized."
         fi
