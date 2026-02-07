@@ -142,10 +142,10 @@ export async function processMarkdownContent(
     items: sections,
     metadata: {
       last_updated: new Date().toISOString(),
-      original_repository: originalRepository?.trim() ?? null,
-      source_repository: sourceRepository?.trim() ?? null,
+      original_repository: (originalRepository?.trim() ?? '') || null,
+      source_repository: (sourceRepository?.trim() ?? '') || null,
       source_repository_description:
-        sourceRepositoryDescription?.trim() ?? null,
+        (sourceRepositoryDescription?.trim() ?? '') || null,
       title,
     },
   };

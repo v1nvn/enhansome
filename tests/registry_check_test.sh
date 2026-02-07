@@ -379,12 +379,16 @@ EOF
 }
 
 function test_allowlist_detects_entries_correctly() {
+  # Use an isolated cache directory to avoid race conditions with parallel tests
+  local temp_cache_dir=$(mktemp -d)
+  local original_registry_cache_dir="$REGISTRY_CACHE_DIR"
+  REGISTRY_CACHE_DIR="$temp_cache_dir"
+
   # Create mock index.json files
-  local cache_dir="${CACHE_DIR}/enhansome-registry"
-  mkdir -p "${cache_dir}/repos/owner1/repo1"
-  mkdir -p "${cache_dir}/repos/owner2/repo2"
-  echo '{"filename": "README.json"}' > "${cache_dir}/repos/owner1/repo1/index.json"
-  echo '{"filename": "custom.json"}' > "${cache_dir}/repos/owner2/repo2/index.json"
+  mkdir -p "${temp_cache_dir}/repos/owner1/repo1"
+  mkdir -p "${temp_cache_dir}/repos/owner2/repo2"
+  echo '{"filename": "README.json"}' > "${temp_cache_dir}/repos/owner1/repo1/index.json"
+  echo '{"filename": "custom.json"}' > "${temp_cache_dir}/repos/owner2/repo2/index.json"
 
   # Verify registered entry is detected
   is_repo_in_allowlist "owner1/repo1" "README.json"
@@ -395,6 +399,6 @@ function test_allowlist_detects_entries_correctly() {
   assert_unsuccessful_code
 
   # Clean up
-  rm -rf "${cache_dir}/repos/owner1"
-  rm -rf "${cache_dir}/repos/owner2"
+  REGISTRY_CACHE_DIR="$original_registry_cache_dir"
+  rm -rf "$temp_cache_dir"
 }

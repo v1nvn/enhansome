@@ -180,8 +180,10 @@ function test_fetch_allowlist_scans_repos_directory() {
 # ============================================================================
 
 # Helper function to create a mock registry cache with test data
+# Uses a temp directory to avoid race conditions with parallel tests
 function setup_mock_registry_cache() {
-  local cache_dir="${CACHE_DIR}/enhansome-registry"
+  local cache_dir=$(mktemp -d)
+  export MOCK_REGISTRY_CACHE_DIR="$cache_dir"
   local repos_dir="${cache_dir}/repos"
 
   # Create directory structure
@@ -232,12 +234,15 @@ EOF
 }
 
 function cleanup_mock_registry_cache() {
-  rm -rf "${CACHE_DIR}/enhansome-registry"
+  rm -rf "${MOCK_REGISTRY_CACHE_DIR}"
+  unset MOCK_REGISTRY_CACHE_DIR
 }
 
 # Test that an existing repo is detected in the list
 function test_is_awesome_repo_already_enhansomed_found() {
   setup_mock_registry_cache
+  local original_registry_cache_dir="$REGISTRY_CACHE_DIR"
+  REGISTRY_CACHE_DIR="$MOCK_REGISTRY_CACHE_DIR"
 
   if is_awesome_repo_already_enhansomed "avelino/awesome-go"; then
     local exit_code=0
@@ -245,6 +250,7 @@ function test_is_awesome_repo_already_enhansomed_found() {
     local exit_code=1
   fi
 
+  REGISTRY_CACHE_DIR="$original_registry_cache_dir"
   cleanup_mock_registry_cache
   assert_equals 0 "$exit_code"
 }
@@ -252,6 +258,8 @@ function test_is_awesome_repo_already_enhansomed_found() {
 # Test that a non-existing repo is not found
 function test_is_awesome_repo_already_enhansomed_not_found() {
   setup_mock_registry_cache
+  local original_registry_cache_dir="$REGISTRY_CACHE_DIR"
+  REGISTRY_CACHE_DIR="$MOCK_REGISTRY_CACHE_DIR"
 
   if is_awesome_repo_already_enhansomed "unknown/nonexistent-repo"; then
     local exit_code=1
@@ -259,6 +267,7 @@ function test_is_awesome_repo_already_enhansomed_not_found() {
     local exit_code=0
   fi
 
+  REGISTRY_CACHE_DIR="$original_registry_cache_dir"
   cleanup_mock_registry_cache
   assert_equals 0 "$exit_code"
 }
@@ -266,6 +275,8 @@ function test_is_awesome_repo_already_enhansomed_not_found() {
 # Test partial matching doesn't trigger false positives
 function test_is_awesome_repo_already_enhansomed_partial_match_no_false_positive() {
   setup_mock_registry_cache
+  local original_registry_cache_dir="$REGISTRY_CACHE_DIR"
+  REGISTRY_CACHE_DIR="$MOCK_REGISTRY_CACHE_DIR"
 
   # "awesome" should NOT match "sindresorhus/awesome" (needs exact match)
   if is_awesome_repo_already_enhansomed "awesome"; then
@@ -274,6 +285,7 @@ function test_is_awesome_repo_already_enhansomed_partial_match_no_false_positive
     local exit_code=0
   fi
 
+  REGISTRY_CACHE_DIR="$original_registry_cache_dir"
   cleanup_mock_registry_cache
   assert_equals 0 "$exit_code"
 }
@@ -281,6 +293,8 @@ function test_is_awesome_repo_already_enhansomed_partial_match_no_false_positive
 # Test case sensitivity
 function test_is_awesome_repo_already_enhansomed_case_sensitive() {
   setup_mock_registry_cache
+  local original_registry_cache_dir="$REGISTRY_CACHE_DIR"
+  REGISTRY_CACHE_DIR="$MOCK_REGISTRY_CACHE_DIR"
 
   # "Avelino/Awesome-Go" should NOT match "avelino/awesome-go"
   if is_awesome_repo_already_enhansomed "Avelino/Awesome-Go"; then
@@ -289,6 +303,7 @@ function test_is_awesome_repo_already_enhansomed_case_sensitive() {
     local exit_code=0
   fi
 
+  REGISTRY_CACHE_DIR="$original_registry_cache_dir"
   cleanup_mock_registry_cache
   assert_equals 0 "$exit_code"
 }
