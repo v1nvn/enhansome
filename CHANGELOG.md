@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.8.1](https://github.com/v1nvn/enhansome/compare/v1.8.0...v1.8.1) (2026-02-07)
+
+
+### Bug Fixes
+
+* always invalidate cache ([11713a2](https://github.com/v1nvn/enhansome/commit/11713a2b5ad859f70bfc981777815108c9d96381))
+* apply .gitignore changes ([e09b592](https://github.com/v1nvn/enhansome/commit/e09b5924eff6d2116024914db66a08fd3fb481db))
+* failing tests ([af669a6](https://github.com/v1nvn/enhansome/commit/af669a61d0b25d7dca166b8de3ff74ad6dd01687))
+* install jq in alpine ([feca4d0](https://github.com/v1nvn/enhansome/commit/feca4d04926f1e6547385ad37c196f1fd5799070))
+* migration from allowlist.txt to repos/&lt;owner&gt;/&lt;repo&gt;/ ([566eefd](https://github.com/v1nvn/enhansome/commit/566eefdeb3e091305ca936b966a8436c53d7faea))
+* readme case sensitive detection ([0eaefdc](https://github.com/v1nvn/enhansome/commit/0eaefdc426145b7dae58562a7074597c7d4f5643))
+* registry addition guards ([d1efdc5](https://github.com/v1nvn/enhansome/commit/d1efdc5db18ede70e58dcc7172340d027ea1cd19))
+* remove --recursive from submodule update ([b560dd9](https://github.com/v1nvn/enhansome/commit/b560dd9b3b282ccaf4c4fa97939a3fe0e6bb28ca))
+* suppress expected error ([ddb01cc](https://github.com/v1nvn/enhansome/commit/ddb01cc9cd56e7632678e0b07c16e13ace906f96))
+
 ## [1.8.0](https://github.com/v1nvn/enhansome/compare/v1.7.2...v1.8.0) (2026-02-03)
 
 
