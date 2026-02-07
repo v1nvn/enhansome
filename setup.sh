@@ -382,28 +382,10 @@ ensure_registry_cache() {
     return 0
   fi
 
-  # Check if cache is stale (more than CACHE_TTL seconds old)
-  local cache_age
-  if [[ "$(uname)" == "Darwin" ]]; then
-    local now
-    now=$(date +%s)
-    cache_age=$(stat -f %m "$REGISTRY_CACHE_DIR/.git" 2>/dev/null || echo 0)
-    local age_diff=$((now - cache_age))
-  else
-    local now
-    now=$(date +%s)
-    cache_age=$(stat -c %Y "$REGISTRY_CACHE_DIR/.git" 2>/dev/null || echo 0)
-    local age_diff=$((now - cache_age))
-  fi
-
-  # Pull if cache is stale
-  if [[ $age_diff -ge $CACHE_TTL ]]; then
-    log_verbose "Registry cache is stale (${age_diff}s old), pulling latest..."
-    git -C "$REGISTRY_CACHE_DIR" pull --quiet 2>/dev/null
-    touch "$REGISTRY_CACHE_DIR/.git"  # Update timestamp
-  else
-    log_verbose "Using cached registry repo (${age_diff}s old)"
-  fi
+  # Always pull latest changes on startup
+  log_verbose "Pulling latest registry changes..."
+  git -C "$REGISTRY_CACHE_DIR" pull --quiet 2>/dev/null
+  touch "$REGISTRY_CACHE_DIR/.git"  # Update timestamp
 
   return 0
 }
@@ -713,8 +695,8 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
 
   DEST_DIR=$(validate_path "$DEST_DIR") || exit 1
 
-  # Check if destination directory already exists and is not empty
-  if is_directory_nonempty "$DEST_DIR"; then
+  # Check if destination directory already exists and is not empty (skip in dry-run)
+  if [[ "$DRY_RUN" != "true" ]] && is_directory_nonempty "$DEST_DIR"; then
     error "Destination directory already exists and is not empty: $DEST_DIR"
     exit 1
   fi
@@ -778,7 +760,12 @@ if [[ "${BASH_SOURCE[0]:-$0}" == "${0}" ]]; then
   execute "Clone repository" git clone "$REPO_URL" "$DEST_DIR" || exit 1
   CLONED_DIR="$DEST_DIR"
 
-  cd "$DEST_DIR" || exit 1
+  # Change to cloned directory (skip in dry-run since directory doesn't exist)
+  if [[ "$DRY_RUN" == "true" ]]; then
+    log_verbose "Would change to directory: $DEST_DIR"
+  else
+    cd "$DEST_DIR" || exit 1
+  fi
 
   # Add submodule
   log "Adding submodule $SUBMODULE_REPO under ./origin"
