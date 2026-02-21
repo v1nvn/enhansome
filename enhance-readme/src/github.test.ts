@@ -71,12 +71,22 @@ describe('github.ts', () => {
       archived: false,
       language: 'TypeScript',
       open_issues_count: 42,
+      owner: 'test-owner',
       pushed_at: '2025-06-29T10:00:00Z',
+      repo: 'test-repo',
       stargazers_count: 1234,
     };
 
     it('should return repo info on successful API call', async () => {
-      mockAxios.onGet(apiUrl).reply(200, mockRepoInfo);
+      mockAxios.onGet(apiUrl).reply(200, {
+        archived: mockRepoInfo.archived,
+        language: mockRepoInfo.language,
+        name: mockRepoInfo.repo,
+        open_issues_count: mockRepoInfo.open_issues_count,
+        owner: { login: mockRepoInfo.owner },
+        pushed_at: mockRepoInfo.pushed_at,
+        stargazers_count: mockRepoInfo.stargazers_count,
+      });
 
       const result = await getRepoInfo(owner, repo, token);
       expect(result).toEqual(mockRepoInfo);
@@ -99,6 +109,7 @@ describe('github.ts', () => {
         archived: true,
         // Intentionally partial response
         name: 'test-repo',
+        owner: { login: 'test-owner' },
       });
 
       const result = await getRepoInfo(owner, repo, token);
@@ -106,7 +117,9 @@ describe('github.ts', () => {
         archived: true,
         language: undefined,
         open_issues_count: undefined,
+        owner: 'test-owner',
         pushed_at: undefined,
+        repo: 'test-repo',
         stargazers_count: undefined,
       });
       // In the new implementation, this is not a warning condition
@@ -127,7 +140,15 @@ describe('github.ts', () => {
           },
         )
         .onGet(apiUrl)
-        .replyOnce(200, mockRepoInfo);
+        .replyOnce(200, {
+          archived: mockRepoInfo.archived,
+          language: mockRepoInfo.language,
+          name: mockRepoInfo.repo,
+          open_issues_count: mockRepoInfo.open_issues_count,
+          owner: { login: mockRepoInfo.owner },
+          pushed_at: mockRepoInfo.pushed_at,
+          stargazers_count: mockRepoInfo.stargazers_count,
+        });
 
       const getInfoPromise = getRepoInfo(owner, repo, token);
       await vi.advanceTimersToNextTimerAsync();
@@ -145,7 +166,15 @@ describe('github.ts', () => {
         .onGet(apiUrl)
         .replyOnce(429, { message: 'Throttled' }, { 'retry-after': '2' })
         .onGet(apiUrl)
-        .replyOnce(200, mockRepoInfo);
+        .replyOnce(200, {
+          archived: mockRepoInfo.archived,
+          language: mockRepoInfo.language,
+          name: mockRepoInfo.repo,
+          open_issues_count: mockRepoInfo.open_issues_count,
+          owner: { login: mockRepoInfo.owner },
+          pushed_at: mockRepoInfo.pushed_at,
+          stargazers_count: mockRepoInfo.stargazers_count,
+        });
 
       const getInfoPromise = getRepoInfo(owner, repo, token);
       await vi.advanceTimersByTimeAsync(3000);
@@ -233,6 +262,8 @@ describe('github.ts', () => {
       expect(result.pushed_at).toEqual(expect.any(String)); // Check if pushed_at is a valid ISO 8601 date string
       // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
       expect(new Date(result.pushed_at!).toString()).not.toBe('Invalid Date');
+      expect(result.owner).toBe('microsoft');
+      expect(result.repo).toBe('vscode');
     }, 15000); // Increased timeout for a real network request
   });
 });

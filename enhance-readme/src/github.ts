@@ -9,8 +9,24 @@ export interface RepoInfoDetails {
   archived: boolean;
   language: null | string;
   open_issues_count: number;
+  owner: string;
+  pushed_at: null | string;
+  repo: string;
+  stargazers_count: number;
+}
+
+interface GitHubApiRepoResponse {
+  archived: boolean;
+  language: null | string;
+  name: string;
+  open_issues_count: number;
+  owner: GitHubOwner;
   pushed_at: null | string;
   stargazers_count: number;
+}
+
+interface GitHubOwner {
+  login: string;
 }
 
 interface RepoIdentifier {
@@ -47,7 +63,9 @@ export async function getRepoInfo(
         headers.Authorization = `Bearer ${token}`;
       }
 
-      const response = await axios.get<RepoInfoDetails>(repoUrl, { headers });
+      const response = await axios.get<GitHubApiRepoResponse>(repoUrl, {
+        headers,
+      });
 
       if (response.status === 200) {
         const { data } = response;
@@ -56,7 +74,9 @@ export async function getRepoInfo(
           archived: data.archived,
           language: data.language,
           open_issues_count: data.open_issues_count,
+          owner: data.owner.login,
           pushed_at: data.pushed_at,
+          repo: data.name,
           stargazers_count: data.stargazers_count,
         };
       }

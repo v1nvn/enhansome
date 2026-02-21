@@ -352,17 +352,14 @@ function processListRecursively(
       title,
     };
     if (repoInfo && githubUrl) {
-      const repoId = parseGitHubUrl(githubUrl);
-      if (repoId) {
-        jsonData.repo_info = {
-          archived: repoInfo.archived,
-          language: repoInfo.language,
-          last_commit: repoInfo.pushed_at,
-          owner: repoId.owner,
-          repo: repoId.repo,
-          stars: repoInfo.stargazers_count,
-        };
-      }
+      jsonData.repo_info = {
+        archived: repoInfo.archived,
+        language: repoInfo.language,
+        last_commit: repoInfo.pushed_at,
+        owner: repoInfo.owner,
+        repo: repoInfo.repo,
+        stars: repoInfo.stargazers_count,
+      };
     }
 
     originalOrderJsonItems.push(jsonData);
