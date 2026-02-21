@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/v1nvn/enhansome/compare/v1.8.1...v1.8.2) (2026-02-21)
+
+
+### Bug Fixes
+
+* real owner repo ([2554ed4](https://github.com/v1nvn/enhansome/commit/2554ed4bf5848ab2160d294e59cae18b7be5d829))
+
 ## [1.8.1](https://github.com/v1nvn/enhansome/compare/v1.8.0...v1.8.1) (2026-02-07)
 
 
