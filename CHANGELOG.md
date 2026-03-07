@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.3](https://github.com/v1nvn/enhansome/compare/v1.8.2...v1.8.3) (2026-03-07)
+
+
+### Bug Fixes
+
+* title extraction ([5db045a](https://github.com/v1nvn/enhansome/commit/5db045ac3a815ffd8ea6b7b53a91d3eb1c98389a))
+
 ## [1.8.2](https://github.com/v1nvn/enhansome/compare/v1.8.1...v1.8.2) (2026-02-21)
 
 
