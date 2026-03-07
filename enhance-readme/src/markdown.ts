@@ -136,7 +136,12 @@ export async function processMarkdownContent(
   const repoInfoMap = await fetchAllRepoInfo(githubUrls, token);
 
   // This single call now handles tree traversal, sorting, and JSON generation.
-  const { sections, title } = processTree(tree, repoInfoMap, sortOptions);
+  const { sections, title } = processTree(
+    tree,
+    repoInfoMap,
+    sortOptions,
+    sourceRepository,
+  );
 
   const jsonData: JsonOutput = {
     items: sections,
@@ -394,6 +399,41 @@ function processListRecursively(
   return originalOrderJsonItems;
 }
 
+// Common section headers that should NOT be used as document titles
+const INVALID_TITLE_PATTERNS = [
+  /^contributing/i,
+  /^license$/i,
+  /^resources$/i,
+  /^contents$/i,
+  /^table of contents$/i,
+  /^other awesome/i,
+  /^other awesomeness$/i,
+  /^communities/i,
+  /^guides$/i,
+  /^tools$/i,
+  /^video$/i,
+  /^science/i,
+];
+
+function formatRepoNameAsTitle(repoName: string): string {
+  // Convert "awesome-nodejs" or "nodejs" to "Awesome Node.js"
+  const cleaned = repoName.replace(/[-_]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  // If it already starts with "awesome", format it nicely
+  if (/^awesome\s+/i.test(cleaned)) {
+    return cleaned.replace(/^awesome\s+/i, 'Awesome ');
+  }
+  // Otherwise, prefix with "Awesome "
+  return `Awesome ${cleaned}`;
+}
+
+function isValidTitle(title: string): boolean {
+  if (!title || title.trim() === '') {
+    return false;
+  }
+  return !INVALID_TITLE_PATTERNS.some(pattern => pattern.test(title.trim()));
+}
+
 /**
  * Main orchestrator that walks the document to build sections based on headings.
  */
@@ -401,13 +441,32 @@ function processTree(
   tree: Root,
   repoInfoMap: Map<string, RepoInfoDetails>,
   sortOptions: SortOptions,
+  sourceRepository?: string,
 ): { sections: JsonSection[]; title: string } {
-  let documentTitle = 'Untitled';
+  // Collect all H1 headings
+  const h1Titles: string[] = [];
   visit(tree, 'heading', (node: Heading) => {
     if (node.depth === 1) {
-      documentTitle = getNodeText(node);
+      h1Titles.push(getNodeText(node));
     }
   });
+
+  // Find first valid title (skip section headers like "Contributing", "License", etc.)
+  let documentTitle = '';
+  for (const title of h1Titles) {
+    if (isValidTitle(title)) {
+      documentTitle = title;
+      break;
+    }
+  }
+
+  // Fallback: extract from source repository name if available
+  if (documentTitle === '' && sourceRepository) {
+    const repoName = sourceRepository.split('/')[1];
+    if (repoName) {
+      documentTitle = formatRepoNameAsTitle(repoName);
+    }
+  }
 
   const sections: JsonSection[] = [];
   let currentSection: JsonSection | null = null;

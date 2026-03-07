@@ -1,8 +1,10 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import * as github from './github.js';
 import { RepoInfoDetails } from './github.js';
-import { fetchAllRepoInfo } from './markdown.js';
+import { fetchAllRepoInfo, processMarkdownContent } from './markdown.js';
 
 // Mock the modules we depend on
 vi.mock('./github.js');
@@ -127,5 +129,180 @@ describe('fetchAllRepoInfo with Concurrency', () => {
     const result = await fetchAllRepoInfo(new Set<string>(), token);
     expect(result.size).toBe(0);
     expect(github.getRepoInfo).not.toHaveBeenCalled();
+  });
+});
+
+describe('Title Extraction from README fixtures', () => {
+  const fixturesDir = path.join(__dirname, 'fixtures', 'original');
+  const expectedTitlesPath = path.join(
+    __dirname,
+    'fixtures',
+    'expected-titles.json',
+  );
+  const sourceReposPath = path.join(__dirname, 'fixtures', 'source-repos.json');
+  const token = 'test-token';
+
+  // Load expected titles and source repos
+  const expectedTitles = JSON.parse(
+    fs.readFileSync(expectedTitlesPath, 'utf-8'),
+  ) as Record<string, Record<string, string>>;
+  const sourceRepos = JSON.parse(
+    fs.readFileSync(sourceReposPath, 'utf-8'),
+  ) as Record<string, string>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Mock getRepoInfo to return basic data (not needed for title extraction)
+    vi.mocked(github.getRepoInfo).mockResolvedValue({
+      archived: false,
+      language: 'TypeScript',
+      open_issues_count: 0,
+      pushed_at: '2025-01-01T00:00:00Z',
+      stargazers_count: 100,
+    });
+    // Mock parseGitHubUrl
+    vi.mocked(github.parseGitHubUrl).mockImplementation((url: string) => {
+      if (!url.includes('github.com')) {
+        return null;
+      }
+      const parts = url.split('/');
+      return { owner: parts[parts.length - 2], repo: parts[parts.length - 1] };
+    });
+  });
+
+  // Category 1 - No H1 (should use repo name)
+  describe('Category 1 - No H1 (should use repo name)', () => {
+    const category =
+      expectedTitles['Category 1 - No H1 (should use repo name)'];
+
+    it.each(Object.entries(category))(
+      '%s should extract title "%s"',
+      async (fixtureName, expectedTitle) => {
+        const fixturePath = path.join(fixturesDir, `${fixtureName}.md`);
+        const content = fs.readFileSync(fixturePath, 'utf-8');
+        const sourceRepo = sourceRepos[fixtureName];
+
+        const result = await processMarkdownContent(
+          content,
+          token,
+          [],
+          { by: '', minLinks: 2 },
+          undefined,
+          '',
+          sourceRepo,
+        );
+
+        expect(result.jsonData.metadata.title).toBe(expectedTitle);
+      },
+    );
+  });
+
+  // Category 2 - Contributing as last H1 (should skip to first valid)
+  describe('Category 2 - Contributing as last H1 (should skip to first valid)', () => {
+    const category =
+      expectedTitles[
+        'Category 2 - Contributing as last H1 (should skip to first valid)'
+      ];
+
+    it.each(Object.entries(category))(
+      '%s should extract title "%s"',
+      async (fixtureName, expectedTitle) => {
+        const fixturePath = path.join(fixturesDir, `${fixtureName}.md`);
+        const content = fs.readFileSync(fixturePath, 'utf-8');
+        const sourceRepo = sourceRepos[fixtureName];
+
+        const result = await processMarkdownContent(
+          content,
+          token,
+          [],
+          { by: '', minLinks: 2 },
+          undefined,
+          '',
+          sourceRepo,
+        );
+
+        expect(result.jsonData.metadata.title).toBe(expectedTitle);
+      },
+    );
+  });
+
+  // Category 3 - Other section headers as last H1
+  describe('Category 3 - Other section headers as last H1', () => {
+    const category =
+      expectedTitles['Category 3 - Other section headers as last H1'];
+
+    it.each(Object.entries(category))(
+      '%s should extract title "%s"',
+      async (fixtureName, expectedTitle) => {
+        const fixturePath = path.join(fixturesDir, `${fixtureName}.md`);
+        const content = fs.readFileSync(fixturePath, 'utf-8');
+        const sourceRepo = sourceRepos[fixtureName];
+
+        const result = await processMarkdownContent(
+          content,
+          token,
+          [],
+          { by: '', minLinks: 2 },
+          undefined,
+          '',
+          sourceRepo,
+        );
+
+        expect(result.jsonData.metadata.title).toBe(expectedTitle);
+      },
+    );
+  });
+
+  // Category 4 - Empty/complex title (should use repo name)
+  describe('Category 4 - Empty/complex title (should use repo name)', () => {
+    const category =
+      expectedTitles['Category 4 - Empty/complex title (should use repo name)'];
+
+    it.each(Object.entries(category))(
+      '%s should extract title "%s"',
+      async (fixtureName, expectedTitle) => {
+        const fixturePath = path.join(fixturesDir, `${fixtureName}.md`);
+        const content = fs.readFileSync(fixturePath, 'utf-8');
+        const sourceRepo = sourceRepos[fixtureName];
+
+        const result = await processMarkdownContent(
+          content,
+          token,
+          [],
+          { by: '', minLinks: 2 },
+          undefined,
+          '',
+          sourceRepo,
+        );
+
+        expect(result.jsonData.metadata.title).toBe(expectedTitle);
+      },
+    );
+  });
+
+  // Category 5 - Miscellaneous bad titles
+  describe('Category 5 - Miscellaneous bad titles', () => {
+    const category = expectedTitles['Category 5 - Miscellaneous bad titles'];
+
+    it.each(Object.entries(category))(
+      '%s should extract title "%s"',
+      async (fixtureName, expectedTitle) => {
+        const fixturePath = path.join(fixturesDir, `${fixtureName}.md`);
+        const content = fs.readFileSync(fixturePath, 'utf-8');
+        const sourceRepo = sourceRepos[fixtureName];
+
+        const result = await processMarkdownContent(
+          content,
+          token,
+          [],
+          { by: '', minLinks: 2 },
+          undefined,
+          '',
+          sourceRepo,
+        );
+
+        expect(result.jsonData.metadata.title).toBe(expectedTitle);
+      },
+    );
   });
 });
