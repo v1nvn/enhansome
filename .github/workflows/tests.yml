@@ -77,6 +77,34 @@ jobs:
         run: |
           DRY_RUN=true bashunit tests/
 
+  typescript-tests:
+    name: TypeScript Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: enhance-readme/package-lock.json
+
+      - name: Install dependencies
+        working-directory: enhance-readme
+        run: npm ci
+
+      - name: Run TypeScript build
+        working-directory: enhance-readme
+        run: npm run build
+
+      - name: Run tests
+        working-directory: enhance-readme
+        run: npm test
+
   validate-script:
     name: Validate setup.sh
     runs-on: ubuntu-latest
@@ -148,7 +176,7 @@ jobs:
   summary:
     name: Test Summary
     runs-on: ubuntu-latest
-    needs: [shellcheck, tests, test-dry-run, validate-script]
+    needs: [shellcheck, tests, test-dry-run, validate-script, typescript-tests]
     if: always()
     steps:
       - name: Check test results
@@ -161,11 +189,13 @@ jobs:
           echo "| Tests (Ubuntu) | ${{ needs.tests.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Dry-run Test | ${{ needs.test-dry-run.result }} |" >> $GITHUB_STEP_SUMMARY
           echo "| Script Validation | ${{ needs.validate-script.result }} |" >> $GITHUB_STEP_SUMMARY
+          echo "| TypeScript Tests | ${{ needs.typescript-tests.result }} |" >> $GITHUB_STEP_SUMMARY
 
       - name: Fail if any job failed
         if: |
           needs.shellcheck.result == 'failure' ||
           needs.tests.result == 'failure' ||
           needs.test-dry-run.result == 'failure' ||
-          needs.validate-script.result == 'failure'
+          needs.validate-script.result == 'failure' ||
+          needs.typescript-tests.result == 'failure'
         run: exit 1

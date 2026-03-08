@@ -15,7 +15,9 @@ describe('fetchAllRepoInfo with Concurrency', () => {
     archived: false,
     language: 'TypeScript',
     open_issues_count: 5,
+    owner: 'test-user',
     pushed_at: '2025-01-01T00:00:00Z',
+    repo: 'test-repo',
     stargazers_count: 100,
   };
 
@@ -157,7 +159,9 @@ describe('Title Extraction from README fixtures', () => {
       archived: false,
       language: 'TypeScript',
       open_issues_count: 0,
+      owner: 'test-user',
       pushed_at: '2025-01-01T00:00:00Z',
+      repo: 'test-repo',
       stargazers_count: 100,
     });
     // Mock parseGitHubUrl
