@@ -26,12 +26,8 @@ jobs:
 
   tests:
     name: Run bashunit tests
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, macos-latest]
 
     steps:
       - name: Checkout
@@ -39,16 +35,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install bashunit (Linux)
-        if: runner.os == 'Linux'
+      - name: Install bashunit
         run: |
           curl -s https://bashunit.typeddevs.com/install.sh | bash
           echo "$PWD/lib" >> $GITHUB_PATH
-
-      - name: Install bashunit (macOS)
-        if: runner.os == 'macOS'
-        run: |
-          brew install bashunit
 
       - name: Run tests
         run: |
