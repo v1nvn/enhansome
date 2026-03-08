@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.4](https://github.com/v1nvn/enhansome/compare/v1.8.3...v1.8.4) (2026-03-08)
+
+
+### Bug Fixes
+
+* failing enhance readme tests ([0b1fed2](https://github.com/v1nvn/enhansome/commit/0b1fed25e6a39ef320cf50405468119b46a7412e))
+* remove macos bashunit test ([f110f1d](https://github.com/v1nvn/enhansome/commit/f110f1d20478e750e35a4171c27b392d3e03a120))
+
 ## [1.8.3](https://github.com/v1nvn/enhansome/compare/v1.8.2...v1.8.3) (2026-03-07)
 
 
